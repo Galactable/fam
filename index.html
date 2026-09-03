@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FAM — Financial Allocation Monitor</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#0b0d10">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FAM">
+<meta name="robots" content="noindex, nofollow">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" href="./icon-192.png">
+<style>
+:root{
+  /* phosphor on warm graphite — lifted off pure black so long reads don't burn */
+  --bg:#0b0d10;
+  --surface:#14171c;
+  --surface-2:#1a1e25;
+  --surface-3:#20252e;
+  --line:#272d38;
+  --line-soft:#1e232b;
+
+  --ink:#dce6ec;          /* primary reading colour */
+  --ink-2:#93a1af;        /* secondary */
+  --ink-3:#5f6c7a;        /* tertiary / disabled */
+
+  --phos:#5fd3e0;         /* the terminal's own voice */
+  --gold:#f0c26b;         /* money */
+  --violet:#b98bff;       /* structure, active state */
+  --good:#5fd39a;
+  --warn:#f0a55f;
+  --bad:#f4707f;
+
+  --r:6px;
+  --mono:ui-monospace,'SF Mono','JetBrains Mono','Cascadia Mono','Roboto Mono',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  padding:max(26px,env(safe-area-inset-top)) max(22px,env(safe-area-inset-right))
+          max(40px,env(safe-area-inset-bottom)) max(22px,env(safe-area-inset-left));
+  background:var(--bg);color:var(--ink);
+  font-family:var(--mono);font-size:14px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+/* a whisper of CRT, not a filter over the text */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:9;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.014) 0 1px,transparent 1px 3px);
+}
+.wrap{max-width:1240px;margin:0 auto;position:relative;z-index:10}
+
+/* ── masthead ─────────────────────────────── */
+.masthead{display:flex;justify-content:space-between;align-items:baseline;gap:16px;
+  flex-wrap:wrap;padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line)}
+.mark{font-size:20px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+.mark b{color:var(--phos);font-weight:700}
+.mark-sub{color:var(--ink-3);font-size:12.5px;margin-left:10px;letter-spacing:.02em}
+.mark-meta{color:var(--ink-3);font-size:12px}
+
+/* ── cycle rail ───────────────────────────── */
+.rail{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 16px;margin-bottom:18px}
+.rail-l{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.cyc-dates{font-size:17px;color:var(--ink);letter-spacing:-.01em}
+.cyc-dates .arw{color:var(--ink-3);margin:0 6px}
+.cyc-meta{font-size:12px;color:var(--ink-3);margin-top:1px}
+.rail-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+button{font-family:var(--mono);cursor:pointer}
+.btn{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);
+  border-radius:var(--r);padding:7px 13px;font-size:13px;transition:background .12s,border-color .12s,color .12s}
+.btn:hover{background:var(--surface-3);color:var(--ink);border-color:#333a47}
+.btn-primary{background:var(--phos);border-color:var(--phos);color:#07242a;font-weight:600;width:100%;padding:11px}
+.btn-primary:hover{background:#7ae0eb;border-color:#7ae0eb;color:#07242a}
+.btn-ghost{background:transparent;border-color:var(--line);color:var(--ink-2)}
+.btn-sm{padding:4px 10px;font-size:12px;border-radius:5px}
+.btn-x{background:transparent;border:1px solid transparent;color:var(--ink-3);
+  padding:4px 8px;border-radius:5px;font-size:13px}
+.btn-x:hover{color:var(--bad);border-color:rgba(244,112,127,.35);background:rgba(244,112,127,.07)}
+:focus-visible{outline:2px solid var(--phos);outline-offset:2px}
+
+.badge{font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;
+  border-radius:4px;border:1px solid;white-space:nowrap;display:inline-block}
+.b-live{color:var(--good);border-color:rgba(95,211,154,.4);background:rgba(95,211,154,.09)}
+.b-next{color:var(--phos);border-color:rgba(95,211,224,.35);background:rgba(95,211,224,.08)}
+.b-ok{color:var(--ink-3);border-color:var(--line)}
+.b-bad{color:var(--bad);border-color:rgba(244,112,127,.4);background:rgba(244,112,127,.08)}
+.b-warn{color:var(--warn);border-color:rgba(240,165,95,.4);background:rgba(240,165,95,.08)}
+.b-good{color:var(--good);border-color:rgba(95,211,154,.4);background:rgba(95,211,154,.09)}
+.b-vio{color:var(--violet);border-color:rgba(185,139,255,.4);background:rgba(185,139,255,.08)}
+
+/* ── notices ──────────────────────────────── */
+.notice{border:1px solid var(--line);border-left:2px solid var(--ink-3);border-radius:var(--r);
+  background:var(--surface);padding:13px 16px;margin-bottom:12px}
+.notice.n-bad{border-left-color:var(--bad)}
+.notice.n-warn{border-left-color:var(--warn)}
+.notice h4{margin:0 0 9px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);font-weight:600}
+.n-bad h4{color:var(--bad)} .n-warn h4{color:var(--warn)}
+.n-row{display:flex;justify-content:space-between;gap:14px;padding:3px 0;font-size:13px;flex-wrap:wrap}
+.n-row .num{color:var(--gold);white-space:nowrap}
+.foot{font-size:12px;color:var(--ink-3);margin-top:8px;line-height:1.5}
+
+/* ── section titles ───────────────────────── */
+.sec{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  margin:26px 0 12px;flex-wrap:wrap}
+.sec h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-2)}
+.sec .note{font-size:12px;color:var(--ink-3)}
+
+/* ── check cards ──────────────────────────── */
+/* one column per check in the cycle, so 5 or 6 stay on a single row */
+.cards{display:grid;grid-template-columns:repeat(var(--cols,4),minmax(0,1fr));gap:12px}
+/* tighten the internals as the columns get narrower */
+.cards.tight .card{padding:13px 12px 11px}
+.cards.tight .card-amt{font-size:20px;margin:7px 0 10px}
+.cards.tight .line{font-size:12.5px;gap:8px}
+.cards.tight .card-date{font-size:12px}
+.cards.tight .card-foot .val{font-size:15px}
+/* below this there genuinely isn't room — let them wrap rather than crush */
+@media(max-width:1080px){.cards{grid-template-columns:repeat(auto-fit,minmax(212px,1fr))}}
+@media(max-width:620px){.cards{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:15px 15px 13px;display:flex;flex-direction:column}
+.card.live{border-color:rgba(95,211,154,.42);background:linear-gradient(180deg,rgba(95,211,154,.05),transparent 70px)}
+.card.next{border-color:rgba(95,211,224,.34)}
+.card-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:2px}
+.card-n{font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2)}
+.card-date{font-size:12.5px;color:var(--ink-3)}
+.card-amt{font-size:24px;color:var(--gold);letter-spacing:-.02em;margin:8px 0 12px;
+  font-variant-numeric:tabular-nums}
+
+.line{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-top:1px solid var(--line-soft);font-size:13px}
+.line:first-of-type{border-top:none}
+.line-txt{flex:1;min-width:0;overflow-wrap:anywhere;line-height:1.4}
+.line-num{color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.line.done .line-txt{color:var(--ink-3);text-decoration:line-through;text-decoration-color:var(--ink-3)}
+.line.done .line-num{color:var(--ink-3);text-decoration:line-through}
+.slice{color:var(--violet);font-size:11.5px;margin-left:5px}
+.flag{color:var(--warn);font-size:11px;margin-left:5px;letter-spacing:.04em}
+.empty{color:var(--ink-3);font-size:12.5px;padding:8px 0}
+
+/* the tick box */
+.tick{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:15px;height:15px;margin-top:2px;
+  border:1px solid var(--line);border-radius:3px;background:var(--surface-2);cursor:pointer;
+  position:relative;transition:background .12s,border-color .12s}
+.tick:hover{border-color:var(--good)}
+.tick:checked{background:rgba(95,211,154,.16);border-color:var(--good)}
+.tick:checked::after{content:"";position:absolute;left:4.5px;top:1px;width:4px;height:8px;
+  border:solid var(--good);border-width:0 1.6px 1.6px 0;transform:rotate(43deg)}
+
+.bar{height:3px;background:var(--surface-3);border-radius:2px;overflow:hidden;margin:12px 0 9px}
+.bar i{display:block;height:100%;background:var(--phos);border-radius:2px}
+.bar.over i{background:var(--bad)}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink-3);padding:1px 0}
+.kv .num{font-variant-numeric:tabular-nums}
+.card-foot{margin-top:auto;padding-top:10px;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.card-foot .lbl{font-size:12px;color:var(--ink-2);letter-spacing:.04em;text-transform:uppercase}
+.card-foot .val{font-size:16px;font-variant-numeric:tabular-nums}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+
+/* ── panels ───────────────────────────────── */
+.cols{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+@media(min-width:1000px){.cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:16px 17px;margin-bottom:14px}
+.panel > h3{margin:0 0 14px;font-size:12px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-2);padding-bottom:10px;border-bottom:1px solid var(--line-soft)}
+
+.field{margin-bottom:12px}
+.field:last-child{margin-bottom:0}
+label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:5px;letter-spacing:.01em}
+input,select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);
+  padding:9px 11px;font-family:var(--mono);font-size:13.5px;border-radius:5px;outline:none;
+  transition:border-color .12s,box-shadow .12s}
+input::placeholder{color:var(--ink-3)}
+input:hover,select:hover{border-color:#333a47}
+input:focus,select:focus{border-color:var(--phos);box-shadow:0 0 0 3px rgba(95,211,224,.12)}
+select{cursor:pointer}
+input[type=number]{font-variant-numeric:tabular-nums}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.hint{font-size:12px;color:var(--ink-3);margin-top:6px;line-height:1.5}
+.inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+/* check picker chips */
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:2px}
+.chip{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);
+  border-radius:5px;padding:7px 11px;font-size:12px;line-height:1.35;text-align:center;
+  transition:all .12s;min-width:64px}
+.chip:hover{border-color:#3a424f;color:var(--ink-2)}
+.chip.on{border-color:var(--violet);background:rgba(185,139,255,.11);color:var(--violet)}
+.chip small{display:block;font-size:11px;opacity:.75}
+
+.split-box{background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r);padding:13px;margin-top:11px}
+.split-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:9px;margin-top:10px}
+.split-grid label{font-size:11.5px;color:var(--ink-3)}
+.split-grid input{padding:7px 9px;font-size:13px}
+.tally{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  margin-top:11px;font-size:12.5px;color:var(--ink-2);flex-wrap:wrap}
+
+/* ── stat block ───────────────────────────── */
+.stat{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding:9px 0;border-bottom:1px solid var(--line-soft)}
+.stat:last-of-type{border-bottom:none}
+.stat .lbl{font-size:13px;color:var(--ink-2)}
+.stat .val{font-size:19px;color:var(--gold);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.stat.head .lbl{color:var(--ink)}
+.stat.head .val{font-size:23px}
+.stat.sub .lbl,.stat.sub .val{font-size:12.5px;color:var(--ink-3)}
+
+/* ── table ────────────────────────────────── */
+.tscroll{overflow-x:auto;margin:0 -17px -16px;padding:0 17px}
+table{width:100%;border-collapse:collapse;min-width:820px}
+th{text-align:left;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-3);padding:0 10px 9px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+tbody tr:hover td{background:rgba(255,255,255,.017)}
+tr.open td{border-bottom:none;background:rgba(185,139,255,.045)}
+tr.open:hover td{background:rgba(185,139,255,.045)}
+td.drawer{padding:0 10px 14px;background:rgba(185,139,255,.045);border-bottom:1px solid var(--line)}
+tr.settled td:not(.drawer){opacity:.5}
+.cell-sub{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.nowrap{white-space:nowrap}
+td input{padding:7px 9px;font-size:13px}
+
+.term-note{font-size:12px;color:var(--ink-3);text-align:center;margin-top:26px;
+  padding-top:14px;border-top:1px solid var(--line-soft)}
+.term-note b{color:var(--ink-3);font-weight:400}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(max-width:560px){
+  body{padding:max(18px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right))
+       max(34px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+  /* 16px stops iOS auto-zooming when an input takes focus */
+  input,select{font-size:16px}
+  .cyc-dates{font-size:15px}
+  .card-amt{font-size:21px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <span class="mark"><b>FAM</b> Financial Allocation Monitor</span>
+      <span class="mark-sub">rolling pay-cycle ledger</span>
+    </div>
+    <div class="mark-meta" id="mastMeta"></div>
+  </header>
+
+  <div class="rail">
+    <div class="rail-l">
+      <button class="btn btn-sm" onclick="stepCycle(-1)" title="Previous cycle">&larr;</button>
+      <div>
+        <div class="cyc-dates" id="cycDates"></div>
+        <div class="cyc-meta" id="cycMeta"></div>
+      </div>
+      <button class="btn btn-sm" onclick="stepCycle(1)" title="Next cycle">&rarr;</button>
+      <button class="btn btn-sm btn-ghost" onclick="goNow()">Today</button>
+    </div>
+    <div class="rail-r">
+      <label style="margin:0;color:var(--ink-3)">Checks per cycle</label>
+      <select id="cycleLen" onchange="setCycleLen(this.value)" style="width:auto;padding:6px 10px">
+        <option value="2">2</option><option value="4">4</option>
+        <option value="5">5</option><option value="6">6</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="notices"></div>
+
+  <div class="sec">
+    <h2>Paycheck allocation</h2>
+    <span class="note">Tick a line when the money has actually gone out.</span>
+  </div>
+  <div class="cards" id="cards"></div>
+
+  <div class="cols">
+    <div>
+      <div class="panel">
+        <h3>Add an expense</h3>
+        <form onsubmit="addBill(event)" autocomplete="off">
+          <div class="field">
+            <label for="fName">Name</label>
+            <input type="text" id="fName" placeholder="Car repair" required>
+          </div>
+          <div class="two">
+            <div class="field">
+              <label for="fAmount">Total amount</label>
+              <input type="number" id="fAmount" step="0.01" placeholder="0.00" required>
+            </div>
+            <div class="field">
+              <label for="fFreq">How often</label>
+              <select id="fFreq" onchange="draftFreq()">
+                <option value="every">Every cycle</option>
+                <option value="once">One time only</option>
+                <option value="annual">Once a year</option>
+              </select>
+            </div>
+          </div>
+          <div id="freqPane"></div>
+          <div class="field">
+            <label>Split it across these checks</label>
+            <div class="chips" id="draftChips"></div>
+            <div class="hint" id="draftHint"></div>
+          </div>
+          <button type="submit" class="btn btn-primary">Add expense</button>
+        </form>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h3>This cycle</h3>
+        <div class="stat"><span class="lbl">Income</span><span class="val" id="sIncome">—</span></div>
+        <div class="stat"><span class="lbl">Allocated to bills</span><span class="val" id="sBills">—</span></div>
+        <div class="stat head"><span class="lbl">Spendable</span><span class="val" id="sLeft">—</span></div>
+        <div class="stat sub"><span class="lbl">Still to pay</span><span class="val" id="sDue">—</span></div>
+        <div class="stat sub"><span class="lbl">Even load per check</span><span class="val" id="sTarget">—</span></div>
+        <div class="hint" id="sNote"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Income &amp; payday stream</h3>
+        <div class="two">
+          <div class="field">
+            <label for="fWeekly">Weekly payment</label>
+            <input type="number" id="fWeekly" step="0.01" placeholder="0.00" onchange="setWeekly(this.value)">
+          </div>
+          <div class="field">
+            <label for="fAnchor">Anchor payday</label>
+            <input type="date" id="fAnchor" onchange="setAnchor(this.value)">
+          </div>
+        </div>
+        <div class="hint">Set the anchor once to any real payday. Every check from here on is generated from it.</div>
+      </div>
+
+      <div class="panel">
+        <h3>Backup</h3>
+        <div class="inline">
+          <button class="btn" onclick="exportData()">Export file</button>
+          <button class="btn" onclick="document.getElementById('fImport').click()">Import file</button>
+          <input type="file" id="fImport" accept=".json" hidden onchange="importData(event)">
+          <button class="btn btn-ghost" onclick="wipeAll()">Start fresh</button>
+        </div>
+        <div class="hint" id="ioNote">Everything is stored in this browser only. Export before clearing site data.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec"><h2>All expenses</h2><span class="note" id="tblNote"></span></div>
+  <div class="panel">
+    <div class="tscroll">
+      <table>
+        <thead><tr>
+          <th style="width:34px"></th><th>Name</th><th>Due</th><th>Split</th>
+          <th class="nowrap">Amount</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="term-note"><b>Local sandbox — nothing leaves this device.</b></p>
+</div>
+
+<script>
+/* ══ state ══════════════════════════════════════════════ */
+const KEY='fam_state_v3';
+
+/* next Friday from today, so a new install starts on a sensible payday */
+function nextFriday(){
+  const t=new Date(), d=new Date(t.getFullYear(),t.getMonth(),t.getDate());
+  d.setDate(d.getDate()+((5-d.getDay()+7)%7));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+let state={anchorDate:nextFriday(),weekly:0,cycleLength:4,cycleIndex:0,bills:[],paid:{}};
+let openRow=null, draftChecks=new Set(), lastShape='';
+
+
+/* ══ helpers ════════════════════════════════════════════ */
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2=n=>Math.round((+n||0)*100)/100;
+const money=n=>'$'+r2(n).toFixed(2);
+const uid=()=>'b_'+Math.random().toString(36).slice(2,9);
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function parseISO(s){const p=String(s).split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function addDays(d,n){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()+n);return x;}
+function dayDiff(a,b){return Math.round((Date.UTC(b.getFullYear(),b.getMonth(),b.getDate())
+  -Date.UTC(a.getFullYear(),a.getMonth(),a.getDate()))/86400000);}
+function fmt(d){return `${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;}
+function fmtS(d){return `${MON[d.getMonth()]} ${d.getDate()}`;}
+function today(){const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate());}
+const ord=n=>n+(['th','st','nd','rd'][(n%100>>3^1&&n%10)||0]||'th');
+
+/* ══ payday stream ══════════════════════════════════════ */
+const payday=n=>addDays(parseISO(state.anchorDate),7*n);
+function cycleChecks(){const L=state.cycleLength,b=state.cycleIndex*L,o=[];
+  for(let i=0;i<L;i++)o.push({pos:i+1,date:payday(b+i)});return o;}
+function cycleWindow(){const L=state.cycleLength;
+  return {start:payday(state.cycleIndex*L),end:addDays(payday((state.cycleIndex+1)*L),-1)};}
+function nowCycle(){const d=dayDiff(parseISO(state.anchorDate),today());
+  if(d<0)return 0;                       /* anchor not reached: we're heading into cycle 0 */
+  return Math.floor(Math.floor(d/7)/state.cycleLength);}
+
+/* ══ allocation ═════════════════════════════════════════ */
+const perYear=L=>365.25/(7*L);
+
+function billDueDate(b,win){
+  if(b.freq==='once'){if(!b.onDate)return null;const d=parseISO(b.onDate);
+    return (dayDiff(win.start,d)>=0&&dayDiff(d,win.end)>=0)?d:null;}
+  if(b.freq==='annual'){if(!b.onDate)return null;const o=parseISO(b.onDate);
+    for(let y=win.start.getFullYear();y<=win.end.getFullYear();y++){
+      const dim=new Date(y,o.getMonth()+1,0).getDate();
+      const c=new Date(y,o.getMonth(),Math.min(o.getDate(),dim));
+      if(dayDiff(win.start,c)>=0&&dayDiff(c,win.end)>=0)return c;}
+    return null;}
+  if(!b.dueDay)return null;
+  let m=new Date(win.start.getFullYear(),win.start.getMonth(),1);
+  for(let k=0;k<3;k++){
+    const dim=new Date(m.getFullYear(),m.getMonth()+1,0).getDate();
+    const c=new Date(m.getFullYear(),m.getMonth(),Math.min(b.dueDay,dim));
+    if(dayDiff(win.start,c)>=0&&dayDiff(c,win.end)>=0)return c;
+    m=new Date(m.getFullYear(),m.getMonth()+1,1);}
+  return null;}
+
+function nextHit(b,from){
+  if(!b.onDate)return null;const o=parseISO(b.onDate);
+  if(b.freq==='once')return dayDiff(from,o)>=0?o:null;
+  if(b.freq==='annual')for(let y=from.getFullYear();y<=from.getFullYear()+1;y++){
+    const dim=new Date(y,o.getMonth()+1,0).getDate();
+    const c=new Date(y,o.getMonth(),Math.min(o.getDate(),dim));
+    if(dayDiff(from,c)>=0)return c;}
+  return null;}
+
+/* what this bill costs in THIS cycle — a yearly bill is not a cycle bill */
+function cycleAmount(b,L,win){
+  const amt=r2(b.amount);
+  if(b.freq==='every')return amt;
+  if(!b.onDate)return 0;
+  if(b.reserve){
+    if(b.freq==='annual')return r2(amt/perYear(L));
+    const days=dayDiff(win.start,parseISO(b.onDate));
+    if(days<0)return 0;
+    return r2(amt/Math.max(1,Math.ceil((days+1)/(7*L))));
+  }
+  return billDueDate(b,win)?amt:0;}
+
+function allocate(b,L,win){
+  const arr=new Array(L).fill(0);
+  const amt=cycleAmount(b,L,win);
+  let orphan=0,unalloc=0;
+  if(amt<=0)return {arr,orphan:0,unalloc:0,cycAmt:0};
+  if(b.mode==='even'){
+    const per=Math.floor(amt/L*100)/100;
+    for(let i=0;i<L;i++)arr[i]=per;
+    arr[L-1]=r2(arr[L-1]+(amt-per*L));
+  }else if(b.mode==='custom'){
+    const scale=r2(b.amount)>0?amt/r2(b.amount):1;
+    const s=(b.splits||[]).map(v=>r2(r2(v)*scale));
+    let sum=0;
+    for(let i=0;i<s.length;i++){sum+=s[i];if(i<L)arr[i]=s[i];else orphan+=s[i];}
+    unalloc=r2(amt-sum);
+  }else{
+    const p=b.check||1;
+    if(p<=L)arr[p-1]=amt;else orphan=amt;
+  }
+  return {arr,orphan:r2(orphan),unalloc:r2(unalloc),cycAmt:amt};}
+
+const lastFunded=arr=>{let p=0;arr.forEach((v,i)=>{if(v>0)p=i+1;});return p;};
+
+function analyze(){
+  const L=state.cycleLength,checks=cycleChecks(),win=cycleWindow();
+  const rows=state.bills.map(b=>{
+    const a=allocate(b,L,win), due=billDueDate(b,win), fp=lastFunded(a.arr);
+    let late=null;
+    if(due&&fp){const d=dayDiff(due,checks[fp-1].date);if(d>0)late=d;}
+    const slices=a.arr.map((v,i)=>({pos:i+1,amt:v})).filter(x=>x.amt>0);
+    const done=slices.filter(s=>isPaid(b.id,s.pos)).length;
+    return {b,a,due,fp,late,slices,done,allDone:slices.length>0&&done===slices.length};
+  });
+  return {L,checks,win,rows};}
+
+/* ══ paid tracking (per bill, per check, per cycle) ═════ */
+const pKey=(id,pos)=>`${id}|${state.cycleIndex}|${pos}`;
+const isPaid=(id,pos)=>!!state.paid[pKey(id,pos)];
+function togglePaid(id,pos){
+  const k=pKey(id,pos);
+  if(state.paid[k])delete state.paid[k];else state.paid[k]=1;
+  save();render();}
+function toggleAll(id){
+  const {L,win}=analyze();
+  const b=state.bills.find(x=>x.id===id);if(!b)return;
+  const arr=allocate(b,L,win).arr;
+  const slices=arr.map((v,i)=>i+1).filter(p=>arr[p-1]>0);
+  const every=slices.every(p=>isPaid(id,p));
+  slices.forEach(p=>{const k=pKey(id,p);if(every)delete state.paid[k];else state.paid[k]=1;});
+  save();render();}
+
+/* ══ persistence ════════════════════════════════════════ */
+function save(){localStorage.setItem(KEY,JSON.stringify(state));}
+function norm(b){
+  const o={id:b.id||uid(),name:String(b.name||'Untitled').trim(),amount:r2(b.amount),
+    dueDay:b.dueDay!=null?(+b.dueDay||null):null,dueNote:b.dueNote||'',
+    freq:b.freq||'every',onDate:b.onDate||'',reserve:!!b.reserve,
+    mode:b.mode||'single',check:+b.check||1,
+    splits:Array.isArray(b.splits)?b.splits.map(r2):[0,0,0,0,0,0]};
+  while(o.splits.length<6)o.splits.push(0);
+  return o;}
+
+function migrate(list){
+  return list.map(b=>{
+    if(b.mode||b.splits||b.freq)return norm(b);
+    let dueDay=null,note='';
+    if(b.dueDate!=null){const m=String(b.dueDate).match(/(\d{1,2})/);
+      if(m&&+m[1]>=1&&+m[1]<=31)dueDay=+m[1];else note=String(b.dueDate);}
+    const cm=String(b.check||'').match(/(\d+)/);
+    return norm({name:b.name,amount:b.amount,dueDay,dueNote:note,mode:'single',check:cm?+cm[1]:1});
+  });}
+
+function load(){
+  for(const k of [KEY,'fam_state_v2']){
+    const raw=localStorage.getItem(k);
+    if(raw){try{const s=JSON.parse(raw);Object.assign(state,s);
+      state.bills=(state.bills||[]).map(norm);state.paid=state.paid||{};return;}catch(e){}}
+  }
+  const old=localStorage.getItem('unified_terminal_bills');
+  if(old){try{
+    state.bills=migrate(JSON.parse(old));
+    state.anchorDate=localStorage.getItem('sys_first_check_date')||state.anchorDate;
+    state.weekly=parseFloat(localStorage.getItem('sys_ttd'))||state.weekly;
+    state.cycleLength=parseInt(localStorage.getItem('sys_checks'))||4;
+    save();return;}catch(e){}}
+  /* genuinely fresh install: no bills, no income, nothing assumed */
+  state.bills=[];state.paid={};save();}
+
+
+function wipeAll(){
+  if(!confirm('Delete every expense and all settings on this device? Export a backup first if you want to keep them.'))return;
+  state={anchorDate:nextFriday(),weekly:0,cycleLength:4,cycleIndex:0,bills:[],paid:{}};
+  save();lastShape='';render();}
+
+/* ══ actions ════════════════════════════════════════════ */
+function stepCycle(n){state.cycleIndex+=n;save();render();}
+function goNow(){state.cycleIndex=nowCycle();save();render();}
+function setCycleLen(v){state.cycleLength=parseInt(v)||4;
+  draftChecks=new Set(cycleChecks().map(c=>c.pos));save();render();}
+function setWeekly(v){state.weekly=r2(v);save();render();}
+function setAnchor(v){if(v){state.anchorDate=v;save();render();}}
+
+function draftFreq(){
+  const f=document.getElementById('fFreq').value;
+  const p=document.getElementById('freqPane');
+  p.innerHTML = f==='every'
+    ? `<div class="field"><label for="fDueDay">Due day of month</label>
+         <input type="number" id="fDueDay" min="1" max="31" placeholder="e.g. 12"></div>`
+    : `<div class="two">
+         <div class="field"><label for="fOnDate">${f==='annual'?'Renewal date':'Date it hits'}</label>
+           <input type="date" id="fOnDate"></div>
+         <div class="field"><label for="fReserve">Handling</label>
+           <select id="fReserve"><option value="0">Pay in full that cycle</option>
+             <option value="1">Set aside a bit each cycle</option></select></div>
+       </div>`;
+}
+
+function toggleDraft(pos){
+  draftChecks.has(pos)?draftChecks.delete(pos):draftChecks.add(pos);
+  if(!draftChecks.size)draftChecks.add(pos);
+  drawDraft();}
+
+function drawDraft(){
+  const checks=cycleChecks();
+  document.getElementById('draftChips').innerHTML=checks.map(c=>
+    `<button type="button" class="chip${draftChecks.has(c.pos)?' on':''}"
+      onclick="toggleDraft(${c.pos})">Check ${c.pos}<small>${fmtS(c.date)}</small></button>`).join('');
+  const n=draftChecks.size, amt=parseFloat(document.getElementById('fAmount').value);
+  document.getElementById('draftHint').textContent = n===checks.length
+    ? `Divided evenly across all ${n} checks${amt?` — ${money(amt/n)} each`:''}.`
+    : `Divided across ${n} check${n>1?'s':''}${amt?` — ${money(amt/n)} each`:''}. Fine-tune the amounts after adding.`;
+}
+
+function addBill(e){
+  e.preventDefault();
+  const name=document.getElementById('fName').value.trim();
+  const amount=parseFloat(document.getElementById('fAmount').value);
+  const freq=document.getElementById('fFreq').value;
+  if(!name||isNaN(amount))return;
+
+  const b={name,amount,freq};
+  if(freq==='every'){b.dueDay=parseInt(document.getElementById('fDueDay').value)||null;}
+  else{b.onDate=document.getElementById('fOnDate').value||'';
+       b.reserve=document.getElementById('fReserve').value==='1';}
+
+  const picked=[...draftChecks].sort((a,b)=>a-b);
+  const L=state.cycleLength;
+  if(picked.length===1){b.mode='single';b.check=picked[0];}
+  else if(picked.length===L){b.mode='even';}
+  else{
+    b.mode='custom';b.splits=new Array(6).fill(0);
+    const per=Math.floor(amount/picked.length*100)/100;
+    picked.forEach(p=>b.splits[p-1]=per);
+    b.splits[picked[picked.length-1]-1]=r2(per+(amount-per*picked.length));
+  }
+  state.bills.push(norm(b));save();
+  document.getElementById('fName').value='';
+  document.getElementById('fAmount').value='';
+  const dd=document.getElementById('fDueDay'); if(dd)dd.value='';
+  render();}
+
+function upd(id,f,v){
+  const b=state.bills.find(x=>x.id===id);if(!b)return;
+  if(f==='amount')v=r2(v);
+  if(f==='dueDay')v=v===''?null:(parseInt(v)||null);
+  if(f==='check')v=parseInt(v)||1;
+  b[f]=v;
+  if(f==='mode'&&v==='custom'&&b.splits.every(x=>!x))evenInto(b);
+  save();render();}
+function updSplit(id,i,v){const b=state.bills.find(x=>x.id===id);if(!b)return;
+  b.splits[i]=r2(v);save();render();}
+function evenInto(b){const L=state.cycleLength,per=Math.floor(b.amount/L*100)/100;
+  b.splits=new Array(6).fill(0);
+  for(let i=0;i<L;i++)b.splits[i]=per;
+  b.splits[L-1]=r2(b.splits[L-1]+(b.amount-per*L));}
+function evenOut(id){const b=state.bills.find(x=>x.id===id);if(b){evenInto(b);save();render();}}
+function delBill(id){
+  state.bills=state.bills.filter(b=>b.id!==id);
+  Object.keys(state.paid).forEach(k=>{if(k.startsWith(id+'|'))delete state.paid[k];});
+  save();render();}
+function toggleRow(id){openRow=openRow===id?null:id;render();}
+
+/* ══ render ═════════════════════════════════════════════ */
+function render(){
+  const {L,checks,win,rows}=analyze();
+  const t=today();
+
+  document.getElementById('fWeekly').value=state.weekly||'';
+  document.getElementById('fAnchor').value=state.anchorDate;
+  document.getElementById('cycleLen').value=L;
+  document.getElementById('mastMeta').textContent=fmt(t)+(state.weekly?`  ·  weekly ${money(state.weekly)}`:'');
+
+  const cur=nowCycle(), off=state.cycleIndex-cur;
+  document.getElementById('cycDates').innerHTML=
+    `${fmtS(win.start)}<span class="arw">→</span>${fmt(win.end)}` +
+    (off===0?' <span class="badge b-live">Current</span>':'');
+  document.getElementById('cycMeta').textContent=
+    `${L} checks · ${L*7} days` + (off===0?'':off>0?` · ${off} cycle${off>1?'s':''} ahead`:` · ${-off} back`);
+
+  /* ── notices ── */
+  let N='';
+  if(!state.weekly||!state.bills.length){
+    N+=`<div class="notice" style="border-left-color:var(--phos)">
+      <h4 style="color:var(--phos)">Getting started</h4>
+      <div class="foot" style="margin-top:0">
+        This tracks bills against <em>weekly</em> pay, in rolling cycles of ${L} paychecks rather than calendar months.
+        <ol style="margin:9px 0 0;padding-left:18px;line-height:1.7">
+          <li${state.weekly?' style="color:var(--ink-3)"':''}>Set your weekly pay and anchor it to any real payday.${state.weekly?' ✓':''}</li>
+          <li${state.bills.length?' style="color:var(--ink-3)"':''}>Add each expense, tapping which checks it comes out of.${state.bills.length?' ✓':''}</li>
+          <li>Tick each line off as the money actually leaves.</li>
+        </ol>
+      </div>
+      <div class="inline" style="margin-top:12px">
+        <button class="btn btn-sm" onclick="document.getElementById('fImport').click()">Import a backup</button>
+      </div></div>`;
+  }
+  const orphans=rows.filter(r=>r.a.orphan>0);
+  const unbal=rows.filter(r=>Math.abs(r.a.unalloc)>=.01);
+  const lates=rows.filter(r=>r.late&&!r.allDone);
+  if(orphans.length)N+=`<div class="notice n-bad"><h4>Assigned outside this cycle</h4>`+
+    orphans.map(r=>`<div class="n-row"><span>${esc(r.b.name)}</span><span class="num">${money(r.a.orphan)}</span></div>`).join('')+
+    `<div class="foot">This cycle only has ${L} checks, so that money is not covered by any card above. Reopen the row and pick checks that exist.</div></div>`;
+  if(unbal.length)N+=`<div class="notice n-bad"><h4>Splits that don't add up</h4>`+
+    unbal.map(r=>`<div class="n-row"><span>${esc(r.b.name)}</span><span class="num">${r.a.unalloc>0?money(r.a.unalloc)+' short':money(-r.a.unalloc)+' over'}</span></div>`).join('')+`</div>`;
+  if(lates.length)N+=`<div class="notice n-warn"><h4>Funded after the due date</h4>`+
+    lates.map(r=>`<div class="n-row"><span>${esc(r.b.name)} — due ${fmtS(r.due)}, fully funded ${fmtS(checks[r.fp-1].date)}</span>
+      <span class="num" style="color:var(--warn)">${r.late} day${r.late>1?'s':''} late</span></div>`).join('')+`</div>`;
+
+  const ahead=state.bills.filter(b=>b.freq!=='every'&&!b.reserve)
+    .map(b=>({b,d:nextHit(b,addDays(win.end,1))})).filter(x=>x.d)
+    .sort((a,b)=>a.d-b.d).slice(0,4);
+  if(ahead.length)N+=`<div class="notice"><h4>Coming after this cycle</h4>`+
+    ahead.map(x=>`<div class="n-row"><span>${esc(x.b.name)} — ${fmt(x.d)} <span style="color:var(--ink-3)">(${dayDiff(t,x.d)} days out)</span></span>
+      <span class="num">${money(x.b.amount)}</span></div>`).join('')+
+    `<div class="foot">Not counted below. Switch one to “set aside a bit each cycle” to start reserving now.</div></div>`;
+  document.getElementById('notices').innerHTML=N;
+
+  /* ── cards ── */
+  let liveIdx=-1;
+  checks.forEach((c,i)=>{if(dayDiff(c.date,t)>=0&&dayDiff(t,payday(state.cycleIndex*L+i+1))>0)liveIdx=i;});
+  const nextIdx=liveIdx<0?checks.findIndex(c=>dayDiff(t,c.date)>0):-1;
+
+  const cardsEl=document.getElementById('cards');
+  cardsEl.style.setProperty('--cols',L);
+  cardsEl.classList.toggle('tight',L>=5);
+  cardsEl.innerHTML=checks.map((c,i)=>{
+    const items=rows.filter(r=>r.a.arr[i]>0);
+    const committed=r2(items.reduce((s,r)=>s+r.a.arr[i],0));
+    const outstanding=r2(items.filter(r=>!isPaid(r.b.id,c.pos)).reduce((s,r)=>s+r.a.arr[i],0));
+    const left=r2(state.weekly-committed);
+    const pct=state.weekly>0?Math.min(100,committed/state.weekly*100):0;
+    const nDone=items.filter(r=>isPaid(r.b.id,c.pos)).length;
+
+    return `<div class="card${i===liveIdx?' live':i===nextIdx?' next':''}">
+      <div class="card-top">
+        <span class="card-n">Check ${c.pos}</span>
+        ${i===liveIdx?'<span class="badge b-live">Now</span>':i===nextIdx?'<span class="badge b-next">Next up</span>':''}
+      </div>
+      <div class="card-date">${fmt(c.date)}</div>
+      <div class="card-amt">${money(state.weekly)}</div>
+      ${items.length?items.map(r=>{
+        const done=isPaid(r.b.id,c.pos);
+        const n=r.slices.length, k=r.slices.findIndex(s=>s.pos===c.pos)+1;
+        return `<label class="line${done?' done':''}">
+          <input type="checkbox" class="tick" ${done?'checked':''}
+            onchange="togglePaid('${r.b.id}',${c.pos})" title="Mark paid">
+          <span class="line-txt">${esc(r.b.name)}${n>1?`<span class="slice">${k}/${n}</span>`:''}${
+            r.late&&r.fp===c.pos&&!done?'<span class="flag">late</span>':''}</span>
+          <span class="line-num">${money(r.a.arr[i])}</span></label>`;
+      }).join(''):'<div class="empty">Nothing allocated</div>'}
+      <div class="bar${left<0?' over':''}"><i style="width:${pct}%"></i></div>
+      <div class="kv"><span>Committed${items.length?` · ${nDone}/${items.length} paid`:''}</span><span class="num">${money(committed)}</span></div>
+      ${outstanding>0?`<div class="kv"><span>Still to pay</span><span class="num">${money(outstanding)}</span></div>`:''}
+      <div class="card-foot"><span class="lbl">Spendable</span>
+        <span class="val ${left>=0?'pos':'neg'}">${money(left)}</span></div>
+    </div>`;}).join('');
+
+  /* ── stats (summed from the same arrays the cards draw) ── */
+  const allocated=r2(rows.reduce((s,r)=>s+r.a.arr.reduce((x,y)=>x+y,0),0));
+  const income=r2(state.weekly*L);
+  const outstanding=r2(rows.reduce((s,r)=>
+    s+r.slices.filter(x=>!isPaid(r.b.id,x.pos)).reduce((x,y)=>x+y.amt,0),0));
+  document.getElementById('sIncome').textContent=money(income);
+  document.getElementById('sBills').textContent=money(allocated);
+  const le=document.getElementById('sLeft');
+  le.textContent=money(income-allocated);
+  le.className='val '+(income-allocated>=0?'pos':'neg');
+  document.getElementById('sDue').textContent=money(outstanding);
+  document.getElementById('sTarget').textContent=money(allocated/L);
+  const orphSum=r2(orphans.reduce((s,r)=>s+r.a.orphan,0));
+  document.getElementById('sNote').innerHTML=orphSum>0
+    ? `<span style="color:var(--bad)">${money(orphSum)} sits outside this cycle and is not in these figures.</span>`
+    : `Card totals reconcile with these figures.`;
+  const settled=rows.filter(r=>r.allDone).length, active=rows.filter(r=>r.slices.length).length;
+  document.getElementById('tblNote').textContent=active?`${settled} of ${active} settled this cycle`:'';
+
+  /* ── table ── */
+  const tb=document.getElementById('tbody');tb.innerHTML='';
+  if(!rows.length){
+    tb.innerHTML=`<tr><td colspan="7" style="padding:26px 10px;text-align:center;color:var(--ink-3)">
+      No expenses yet. Add one on the left, or import a backup.</td></tr>`;
+  }
+  rows.forEach(r=>{
+    const b=r.b, open=openRow===b.id, n=r.slices.length;
+    let split,scls;
+    if(!n){split='—';scls='b-ok';}
+    else if(b.mode==='even'){split=`all ${L} checks · ${money(r.a.arr[0])} ea`;scls='b-good';}
+    else if(b.mode==='single'){split=`check ${b.check}`;scls=r.a.orphan>0?'b-bad':'b-ok';}
+    else{split=r.slices.map(s=>`ck${s.pos} ${money(s.amt)}`).join(' · ');scls='b-vio';}
+
+    let st;
+    if(r.a.orphan>0)st='<span class="badge b-bad">outside cycle</span>';
+    else if(Math.abs(r.a.unalloc)>=.01)st=`<span class="badge b-bad">${r.a.unalloc>0?'short':'over'} ${money(Math.abs(r.a.unalloc))}</span>`;
+    else if(!n)st='<span class="badge b-ok">not this cycle</span>';
+    else if(r.allDone)st='<span class="badge b-good">paid</span>';
+    else if(r.late)st=`<span class="badge b-warn">${r.late}d late</span>`;
+    else st=`<span class="badge b-ok">${r.done}/${n} paid</span>`;
+
+    const tr=document.createElement('tr');
+    tr.className=(open?'open ':'')+(r.allDone?'settled':'');
+    tr.innerHTML=`
+      <td>${n?`<input type="checkbox" class="tick" ${r.allDone?'checked':''}
+            onchange="toggleAll('${b.id}')" title="Mark whole bill paid this cycle">`:''}</td>
+      <td><input type="text" value="${esc(b.name)}" onchange="upd('${b.id}','name',this.value)"></td>
+      <td class="nowrap">${b.freq==='every'
+          ? `<input type="number" min="1" max="31" value="${b.dueDay||''}" placeholder="—"
+               onchange="upd('${b.id}','dueDay',this.value)" style="width:66px">
+             ${r.due?`<div class="cell-sub">${fmtS(r.due)}</div>`:(b.dueNote?`<div class="cell-sub">${esc(b.dueNote)}</div>`:'')}`
+          : `<span class="badge ${b.freq==='annual'?'b-vio':'b-warn'}">${b.freq==='annual'?'yearly':'one time'}</span>
+             <div class="cell-sub">${b.onDate?fmtS(parseISO(b.onDate)):'no date'}</div>`}</td>
+      <td><div class="badge ${scls}">${b.mode}</div><div class="cell-sub">${split}</div></td>
+      <td><input type="number" step="0.01" value="${b.amount}" onchange="upd('${b.id}','amount',this.value)" style="width:104px"></td>
+      <td>${st}</td>
+      <td class="nowrap"><button class="btn btn-sm btn-ghost" onclick="toggleRow('${b.id}')">${open?'Close':'Edit'}</button>
+        <button class="btn-x" onclick="delBill('${b.id}')" title="Delete">✕</button></td>`;
+    tb.appendChild(tr);
+
+    if(open){
+      const sum=r2(b.splits.slice(0,L).reduce((a,v)=>a+v,0)), diff=r2(b.amount-sum);
+      const tr2=document.createElement('tr');
+      tr2.innerHTML=`<td class="drawer" colspan="7"><div class="split-box">
+        <div class="split-grid" style="grid-template-columns:repeat(auto-fit,minmax(168px,1fr))">
+          <div><label>How often</label>
+            <select onchange="upd('${b.id}','freq',this.value)">
+              <option value="every" ${b.freq==='every'?'selected':''}>Every cycle</option>
+              <option value="once" ${b.freq==='once'?'selected':''}>One time only</option>
+              <option value="annual" ${b.freq==='annual'?'selected':''}>Once a year</option>
+            </select></div>
+          ${b.freq!=='every'?`
+            <div><label>${b.freq==='annual'?'Renewal date':'Date it hits'}</label>
+              <input type="date" value="${esc(b.onDate)}" onchange="upd('${b.id}','onDate',this.value)"></div>
+            <div><label>Handling</label>
+              <select onchange="upd('${b.id}','reserve',this.value==='1')">
+                <option value="0" ${!b.reserve?'selected':''}>Pay in full that cycle</option>
+                <option value="1" ${b.reserve?'selected':''}>Set aside each cycle</option>
+              </select></div>`:''}
+          <div><label>Split style</label>
+            <select onchange="upd('${b.id}','mode',this.value)">
+              <option value="even" ${b.mode==='even'?'selected':''}>Evenly across every check</option>
+              <option value="single" ${b.mode==='single'?'selected':''}>One check only</option>
+              <option value="custom" ${b.mode==='custom'?'selected':''}>Chosen checks</option>
+            </select></div>
+          ${b.mode==='single'?`<div><label>Which check</label>
+            <select onchange="upd('${b.id}','check',this.value)">
+              ${checks.map(c=>`<option value="${c.pos}" ${b.check===c.pos?'selected':''}>Check ${c.pos} — ${fmtS(c.date)}</option>`).join('')}
+            </select></div>`:''}
+        </div>
+        ${b.mode==='custom'?`
+          <div class="split-grid">
+            ${checks.map(c=>`<div><label>Check ${c.pos} · ${fmtS(c.date)}</label>
+              <input type="number" step="0.01" value="${b.splits[c.pos-1]||0}"
+                onchange="updSplit('${b.id}',${c.pos-1},this.value)"></div>`).join('')}
+          </div>
+          <div class="tally"><span>${money(sum)} of ${money(b.amount)} placed —
+            <span style="color:${Math.abs(diff)<.01?'var(--good)':'var(--bad)'}">${
+              Math.abs(diff)<.01?'balanced':(diff>0?money(diff)+' left over':money(-diff)+' too much')}</span></span>
+            <button class="btn btn-sm" onclick="evenOut('${b.id}')">Spread evenly</button></div>`:''}
+        ${b.freq!=='every'?`<div class="hint">${b.reserve
+            ? `Reserving ${money(r.a.cycAmt)} per cycle toward ${money(b.amount)}.`
+            : (r.a.cycAmt>0?`Lands in this cycle, so the full ${money(b.amount)} is allocated here.`
+                           :`Not in this cycle — contributes nothing to these totals.`)}</div>`:''}
+        ${r.due?`<div class="hint">Due ${fmt(r.due)}${b.dueDay?` (the ${ord(b.dueDay)})`:''} · fully funded by check ${r.fp} on ${fmtS(checks[r.fp-1].date)}. ${
+          r.late?`<span style="color:var(--warn)">That is ${r.late} day${r.late>1?'s':''} after it is due.</span>`
+                :`<span style="color:var(--good)">Funded in time.</span>`}</div>`:''}
+      </div></td>`;
+      tb.appendChild(tr2);
+    }
+  });
+
+  const shape=L+'|'+state.cycleIndex;
+  if(lastShape!==shape){lastShape=shape;drawDraft();}
+}
+
+/* ══ backup ═════════════════════════════════════════════ */
+function exportData(){
+  const blob=new Blob([JSON.stringify({version:3,...state},null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`fam_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  document.getElementById('ioNote').textContent='Exported.';}
+function importData(e){
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=ev=>{try{
+    const d=JSON.parse(ev.target.result);
+    if(Array.isArray(d.bills))state.bills=migrate(d.bills);
+    state.anchorDate=d.anchorDate||d.firstCheckDate||state.anchorDate;
+    state.weekly=r2(d.weekly||d.ttd||state.weekly);
+    state.cycleLength=parseInt(d.cycleLength||d.checks||state.cycleLength);
+    state.paid=d.paid||{};
+    save();lastShape='';render();
+    document.getElementById('ioNote').textContent=`Loaded ${state.bills.length} expenses${d.version?'':' from an older backup'}.`;
+  }catch(err){document.getElementById('ioNote').textContent='That file could not be read as a FAM backup.';}};
+  rd.readAsText(f);e.target.value='';}
+
+/* ══ boot ═══════════════════════════════════════════════ */
+load();
+state.cycleIndex=nowCycle();
+draftChecks=new Set(cycleChecks().map(c=>c.pos));
+draftFreq();
+render();
+document.getElementById('fAmount').addEventListener('input',drawDraft);
+</script>
+</body>
+</html>

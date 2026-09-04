@@ -373,7 +373,7 @@ td input{padding:7px 9px;font-size:13px}
     </div>
   </div>
 
-  <p class="term-note"><b>Local sandbox — nothing leaves this device.</b></p>
+  <p class="term-note" id="footNote"></p>
 </div>
 
 <script>
@@ -1079,6 +1079,15 @@ async function syncNow(){
 function drawSync(note){
   if(note!==undefined)sync.note=note;
   const pane=document.getElementById('syncPane'), dot=document.getElementById('syncDot');
+  const foot=document.getElementById('footNote');
+  if(foot){
+    /* say what is actually true right now, not what was true before sync existed */
+    foot.innerHTML = sync.key
+      ? `<b>Encrypted on this device before syncing.</b> Supabase stores a blob it cannot read.`
+      : sync.sess
+        ? `<b>Signed in, vault locked.</b> Nothing syncs until you unlock it.`
+        : `<b>Local only — nothing leaves this device.</b>`;
+  }
   if(!pane)return;
   const n=sync.note?`<div class="hint">${esc(sync.note)}</div>`:'';
 
@@ -1159,6 +1168,7 @@ draftChecks=new Set(cycleChecks().map(c=>c.pos));
 draftFreq();
 render();
 document.getElementById('fAmount').addEventListener('input',drawDraft);
+drawSync('');
 bootSync();
 </script>
 </body>

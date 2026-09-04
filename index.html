@@ -137,23 +137,22 @@ button{font-family:var(--mono);cursor:pointer}
 .card-amt{font-size:24px;color:var(--gold);letter-spacing:-.02em;margin:8px 0 12px;
   font-variant-numeric:tabular-nums}
 
-.line{display:flex;align-items:flex-start;gap:9px;padding:6px 26px 6px 0;border-top:1px solid var(--line-soft);font-size:13px}
+.line{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-top:1px solid var(--line-soft);font-size:13px}
 .line:first-of-type{border-top:none}
 .line-txt{flex:1;min-width:0;overflow-wrap:anywhere;line-height:1.4}
 .line-num{color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .line.done .line-txt{color:var(--ink-3);text-decoration:line-through;text-decoration-color:var(--ink-3)}
 .line.done .line-num{color:var(--ink-3);text-decoration:line-through}
-/* drag handle — its own target so ticking the row still works */
-.line{position:relative}
-.grip{position:absolute;right:0;top:0;bottom:0;width:26px;
-  display:flex;align-items:center;justify-content:center;
-  color:var(--ink-4);font-size:13px;line-height:1;cursor:grab;touch-action:none;
-  border-radius:4px;background:transparent;border:none;padding:0}
-.grip:hover{color:var(--violet);background:rgba(185,139,255,.1)}
+/* press and hold a line to move it; a plain tap still ticks it off.
+   Selection and the native long-press callout are off on the line itself,
+   otherwise the phone raises its own magnifier in the same 400ms window. */
+.line{position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.line.holding{background:rgba(185,139,255,.09);border-radius:4px}
 .line.dragging{opacity:.35}
 .card.drop{border-color:var(--violet);background:rgba(185,139,255,.07)}
 .line.dropmark{box-shadow:inset 0 2px 0 var(--violet)}
 .ghost{position:fixed;z-index:70;pointer-events:none;opacity:.92;
+  -webkit-user-select:none;user-select:none;
   background:var(--surface-3);border:1px solid var(--violet);border-radius:5px;
   padding:7px 10px;font-size:13px;display:flex;gap:9px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
 .slice{color:var(--violet);font-size:11.5px;margin-left:5px}
@@ -172,9 +171,9 @@ button{font-family:var(--mono);cursor:pointer}
 .bar{height:3px;background:var(--surface-3);border-radius:2px;overflow:hidden;margin:12px 0 9px}
 .bar i{display:block;height:100%;background:var(--phos);border-radius:2px}
 .bar.over i{background:var(--bad)}
-.kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink-3);padding:1px 26px 1px 0}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink-3);padding:1px 0}
 .kv .num{font-variant-numeric:tabular-nums}
-.card-foot{margin-top:auto;padding:10px 26px 0 0;border-top:1px solid var(--line);
+.card-foot{margin-top:auto;padding:10px 0 0;border-top:1px solid var(--line);
   display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .card-foot .lbl{font-size:12px;color:var(--ink-2);letter-spacing:.04em;text-transform:uppercase}
 .card-foot .val{font-size:16px;font-variant-numeric:tabular-nums}
@@ -364,7 +363,7 @@ body.sheeting .fab{display:none}
 
   <div class="sec">
     <h2>Paycheck allocation</h2>
-    <span class="note">Tick a line when the money has actually gone out.</span>
+    <span class="note">Tick a line when the money has actually gone out. Hold one to move it to another check.</span>
   </div>
   <div class="cards" id="cards"></div>
 
@@ -873,14 +872,13 @@ function render(){
       ${items.length?items.map(r=>{
         const done=isPaid(r.b.id,c.pos);
         const n=r.slices.length, k=r.slices.findIndex(s=>s.pos===c.pos)+1;
-        return `<label class="line${done?' done':''}" data-bill="${r.b.id}" data-pos="${c.pos}">
+        return `<label class="line${done?' done':''}" data-bill="${r.b.id}" data-pos="${c.pos}"
+          title="Hold to move this to another check">
           <input type="checkbox" class="tick" ${done?'checked':''}
             onchange="togglePaid('${r.b.id}',${c.pos})" title="Mark paid">
           <span class="line-txt">${esc(r.b.name)}${n>1?`<span class="slice">${k}/${n}</span>`:''}${
             r.late&&r.fp===c.pos&&!done?'<span class="flag">late</span>':''}</span>
-          <span class="line-num">${money(r.a.arr[i])}</span>
-          <button type="button" class="grip" aria-label="Move ${esc(r.b.name)}"
-            title="Drag to another check, or up and down to reorder">⠿</button></label>`;
+          <span class="line-num">${money(r.a.arr[i])}</span></label>`;
       }).join(''):'<div class="empty">Nothing allocated</div>'}
       <div class="bar${left<0?' over':''}"><i style="width:${pct}%"></i></div>
       <div class="kv"><span>Committed${items.length?` · ${nDone}/${items.length} paid`:''}</span><span class="num">${money(committed)}</span></div>
@@ -1067,25 +1065,41 @@ function reorderBill(id,beforeId){
     document.querySelectorAll('.card.drop').forEach(e=>e.classList.remove('drop'));
     document.querySelectorAll('.line.dropmark').forEach(e=>e.classList.remove('dropmark'));
   };
+  const HOLD=400, SLOP=9;
+  let holdTimer=null, suppressClick=false;
+  const cancelHold=()=>{clearTimeout(holdTimer);holdTimer=null;};
+  function arm(){
+    if(!drag||drag.live)return;
+    drag.live=true;
+    drag.line.classList.remove('holding');
+    drag.line.classList.add('dragging');
+    const g=document.createElement('div');
+    g.className='ghost';
+    g.innerHTML=drag.line.querySelector('.line-txt').innerHTML+
+      '<span style="color:var(--gold)">'+drag.line.querySelector('.line-num').textContent+'</span>';
+    document.body.appendChild(g);drag.ghost=g;
+    g.style.left=(drag.cx+12)+'px';g.style.top=(drag.cy-14)+'px';
+    if(navigator.vibrate)navigator.vibrate(12);
+  }
   document.addEventListener('pointerdown',e=>{
-    const grip=e.target.closest&&e.target.closest('.grip');
-    if(!grip)return;
-    const line=grip.closest('.line');if(!line)return;
-    e.preventDefault();
-    drag={id:line.dataset.bill,pos:+line.dataset.pos,line,x:e.clientX,y:e.clientY,live:false,ghost:null};
-    if(grip.setPointerCapture)grip.setPointerCapture(e.pointerId);
+    if(e.button)return;
+    const line=e.target.closest&&e.target.closest('.line');
+    if(!line||!line.dataset.bill)return;
+    cancelHold();
+    drag={id:line.dataset.bill,pos:+line.dataset.pos,line,
+      x:e.clientX,y:e.clientY,cx:e.clientX,cy:e.clientY,live:false,ghost:null};
+    line.classList.add('holding');
+    holdTimer=setTimeout(arm,HOLD);
   });
   document.addEventListener('pointermove',e=>{
     if(!drag)return;
+    drag.cx=e.clientX;drag.cy=e.clientY;
     if(!drag.live){
-      if(Math.abs(e.clientX-drag.x)+Math.abs(e.clientY-drag.y)<7)return;
-      drag.live=true;
-      drag.line.classList.add('dragging');
-      const g=document.createElement('div');
-      g.className='ghost';
-      g.innerHTML=drag.line.querySelector('.line-txt').innerHTML+
-        '<span style="color:var(--gold)">'+drag.line.querySelector('.line-num').textContent+'</span>';
-      document.body.appendChild(g);drag.ghost=g;
+      /* moved before the hold landed — that was a scroll, not a drag */
+      if(Math.abs(e.clientX-drag.x)+Math.abs(e.clientY-drag.y)>SLOP){
+        cancelHold();drag.line.classList.remove('holding');drag=null;
+      }
+      return;
     }
     drag.ghost.style.left=(e.clientX+12)+'px';
     drag.ghost.style.top=(e.clientY-14)+'px';
@@ -1095,10 +1109,22 @@ function reorderBill(id,beforeId){
     const over=hit(e.clientX,e.clientY,'.line');
     if(over&&over!==drag.line)over.classList.add('dropmark');
   });
+  /* once armed, keep the page from scrolling under the drag */
+  document.addEventListener('touchmove',e=>{if(drag&&drag.live)e.preventDefault();},{passive:false});
+  /* Android raises the context menu from the same long press */
+  document.addEventListener('contextmenu',e=>{if(drag)e.preventDefault();});
+  /* a drag must never also count as a tap on the tick box */
+  document.addEventListener('click',e=>{
+    if(!suppressClick)return;
+    suppressClick=false;e.preventDefault();e.stopPropagation();
+  },true);
   document.addEventListener('pointerup',e=>{
+    cancelHold();
     if(!drag)return;
     const d=drag;drag=null;
+    d.line.classList.remove('holding');
     if(!d.live){clearMarks();return;}
+    suppressClick=true;
     d.line.classList.remove('dragging');
     if(d.ghost)d.ghost.remove();
     const card=hit(e.clientX,e.clientY,'.card');
@@ -1109,12 +1135,17 @@ function reorderBill(id,beforeId){
     if(card&&+card.dataset.pos!==d.pos)changed=moveSlice(d.id,d.pos,+card.dataset.pos)||changed;
     if(changed)render();
   });
-  document.addEventListener('pointercancel',()=>{
+  const bail=()=>{
+    cancelHold();
     if(!drag)return;
     drag.line.classList.remove('dragging');
+    drag.line.classList.remove('holding');
     if(drag.ghost)drag.ghost.remove();
     drag=null;clearMarks();
-  });
+  };
+  document.addEventListener('pointercancel',bail);
+  window.addEventListener('blur',bail);
+  document.addEventListener('scroll',()=>{if(drag&&!drag.live)bail();},true);
 })();
 
 /* ══ sheets ════════════════════════════════════════════

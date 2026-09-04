@@ -343,6 +343,11 @@ td input{padding:7px 9px;font-size:13px}
       </div>
 
       <div class="panel">
+        <h3>Sync <span id="syncDot" class="badge b-ok" style="margin-left:6px">local only</span></h3>
+        <div id="syncPane"></div>
+      </div>
+
+      <div class="panel">
         <h3>Backup</h3>
         <div class="inline">
           <button class="btn" onclick="exportData()">Export file</button>
@@ -507,7 +512,8 @@ function toggleAll(id){
   save();render();}
 
 /* ══ persistence ════════════════════════════════════════ */
-function save(){localStorage.setItem(KEY,JSON.stringify(state));}
+function save(){localStorage.setItem(KEY,JSON.stringify(state));
+  if(typeof scheduleSync==='function')scheduleSync();}
 function norm(b){
   const o={id:b.id||uid(),name:String(b.name||'Untitled').trim(),amount:r2(b.amount),
     dueDay:b.dueDay!=null?(+b.dueDay||null):null,dueNote:b.dueNote||'',
@@ -871,6 +877,281 @@ function importData(e){
   }catch(err){document.getElementById('ioNote').textContent='That file could not be read as a FAM backup.';}};
   rd.readAsText(f);e.target.value='';}
 
+/* ══════════════════════════════════════════════════════════
+   ENCRYPTED SYNC
+   The server stores one opaque blob per user. It never receives
+   the passphrase and cannot derive it. Losing the passphrase means
+   losing the remote copy — there is no reset by design.
+   ══════════════════════════════════════════════════════════ */
+const CFG='fam_sync_cfg', SESS='fam_sync_sess', PASS='fam_sync_pass', META='fam_sync_meta';
+const PBKDF2_ITER=600000;
+const SUB=globalThis.crypto&&globalThis.crypto.subtle;
+
+let sync={cfg:null,sess:null,key:null,rev:0,busy:false,note:'',pending:false,timer:null};
+
+const te=new TextEncoder(), td=new TextDecoder();
+const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b)));
+const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+
+async function deriveKey(pass,salt){
+  const base=await SUB.importKey('raw',te.encode(pass),'PBKDF2',false,['deriveKey']);
+  return SUB.deriveKey({name:'PBKDF2',salt,iterations:PBKDF2_ITER,hash:'SHA-256'},
+    base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function encryptState(obj,key){
+  const iv=globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const ct=await SUB.encrypt({name:'AES-GCM',iv},key,te.encode(JSON.stringify(obj)));
+  return {ciphertext:b64(ct),iv:b64(iv)};
+}
+async function decryptState(row,key){
+  const pt=await SUB.decrypt({name:'AES-GCM',iv:unb64(row.iv)},key,unb64(row.ciphertext));
+  return JSON.parse(td.decode(pt));
+}
+
+/* ── Supabase over plain fetch: no CDN script gets access to this origin ── */
+async function sbAuth(path,body){
+  const r=await fetch(`${sync.cfg.url}/auth/v1/${path}`,{method:'POST',
+    headers:{'apikey':sync.cfg.key,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error_description||j.msg||j.message||`auth failed (${r.status})`);
+  return j;
+}
+async function sbRest(path,opts={},retry=true){
+  const r=await fetch(`${sync.cfg.url}/rest/v1/${path}`,{...opts,
+    headers:{'apikey':sync.cfg.key,'Authorization':`Bearer ${sync.sess.access_token}`,
+      'Content-Type':'application/json','Prefer':'return=representation',...(opts.headers||{})}});
+  if(r.status===401&&retry&&sync.sess.refresh_token){
+    await refreshSession();
+    return sbRest(path,opts,false);
+  }
+  if(!r.ok)throw new Error(`${r.status} ${(await r.text()).slice(0,180)}`);
+  return r.status===204?null:r.json();
+}
+async function refreshSession(){
+  const j=await sbAuth('token?grant_type=refresh_token',{refresh_token:sync.sess.refresh_token});
+  saveSession(j);
+}
+function saveSession(j){
+  sync.sess={access_token:j.access_token,refresh_token:j.refresh_token,
+    user_id:(j.user&&j.user.id)||sync.sess?.user_id,email:(j.user&&j.user.email)||sync.sess?.email};
+  localStorage.setItem(SESS,JSON.stringify(sync.sess));
+}
+
+/* ── the state we actually sync (never the session or passphrase) ── */
+const syncable=()=>({anchorDate:state.anchorDate,weekly:state.weekly,
+  cycleLength:state.cycleLength,bills:state.bills,paid:state.paid});
+
+async function pushRemote(force){
+  if(!sync.sess||!sync.key)return;
+  sync.busy=true;drawSync('Saving…');
+  try{
+    const salt=localStorage.getItem(META)?JSON.parse(localStorage.getItem(META)).salt:null;
+    if(!salt)throw new Error('no salt on this device');
+    const blob=await encryptState(syncable(),sync.key);
+    const body={user_id:sync.sess.user_id,ciphertext:blob.ciphertext,iv:blob.iv,
+      salt,rev:sync.rev+1,updated_at:new Date().toISOString()};
+
+    /* conditional on the revision we loaded — this is what stops silent overwrites */
+    let rows=null;
+    if(sync.rev>0&&!force){
+      rows=await sbRest(`fam_vault?user_id=eq.${sync.sess.user_id}&rev=eq.${sync.rev}`,
+        {method:'PATCH',body:JSON.stringify(body)});
+      if(!rows||!rows.length){
+        sync.busy=false;sync.pending=true;
+        drawSync('conflict');
+        return;
+      }
+    }else{
+      rows=await sbRest('fam_vault',{method:'POST',
+        headers:{'Prefer':'return=representation,resolution=merge-duplicates'},
+        body:JSON.stringify(body)});
+    }
+    sync.rev=(rows&&rows[0]&&rows[0].rev)||sync.rev+1;
+    sync.pending=false;sync.busy=false;drawSync('Saved '+nowTime());
+  }catch(e){
+    sync.busy=false;sync.pending=true;drawSync('offline — will retry');
+  }
+}
+
+async function pullRemote(){
+  if(!sync.sess)return null;
+  const rows=await sbRest(`fam_vault?user_id=eq.${sync.sess.user_id}&select=*`);
+  return rows&&rows.length?rows[0]:null;
+}
+
+/* Local is authoritative until the user explicitly accepts remote. */
+async function applyRemote(row){
+  const data=await decryptState(row,sync.key);
+  Object.assign(state,data);
+  state.bills=(state.bills||[]).map(norm);
+  state.paid=state.paid||{};
+  sync.rev=row.rev;
+  localStorage.setItem(KEY,JSON.stringify(state));
+  lastShape='';render();
+}
+
+function scheduleSync(){
+  if(!sync.sess||!sync.key)return;
+  clearTimeout(sync.timer);
+  drawSync('unsaved changes');
+  sync.timer=setTimeout(()=>pushRemote(),2500);
+}
+const nowTime=()=>new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+
+/* ── actions from the sync panel ── */
+async function connectSupabase(){
+  const url=document.getElementById('sbUrl').value.trim().replace(/\/+$/,'');
+  const key=document.getElementById('sbKey').value.trim();
+  if(!url||!key)return;
+  sync.cfg={url,key};localStorage.setItem(CFG,JSON.stringify(sync.cfg));
+  drawSync('');
+}
+async function signIn(mode){
+  const email=document.getElementById('sbEmail').value.trim();
+  const pw=document.getElementById('sbPw').value;
+  if(!email||!pw)return;
+  drawSync(mode==='up'?'Creating account…':'Signing in…');
+  try{
+    const j=mode==='up'
+      ? await sbAuth('signup',{email,password:pw})
+      : await sbAuth('token?grant_type=password',{email,password:pw});
+    if(!j.access_token){drawSync('Check your email to confirm, then sign in.');return;}
+    saveSession(j);drawSync('');
+  }catch(e){drawSync(e.message);}
+}
+function signOut(){
+  localStorage.removeItem(SESS);localStorage.removeItem(PASS);
+  sync.sess=null;sync.key=null;sync.rev=0;drawSync('');
+}
+
+async function unlockVault(){
+  const pass=document.getElementById('sbPass').value;
+  if(!pass){drawSync('Enter your passphrase.');return;}
+  drawSync('Unlocking…');
+  try{
+    const remote=await pullRemote();
+    let salt;
+    if(remote){
+      salt=unb64(remote.salt);
+      sync.key=await deriveKey(pass,salt);
+      try{ await decryptState(remote,sync.key); }
+      catch{ sync.key=null;drawSync('Wrong passphrase for this vault.');return; }
+    }else{
+      salt=globalThis.crypto.getRandomValues(new Uint8Array(16));
+      sync.key=await deriveKey(pass,salt);
+    }
+    localStorage.setItem(META,JSON.stringify({salt:b64(salt)}));
+    localStorage.setItem(PASS,pass);   /* device-local convenience; never transmitted */
+
+    if(remote){
+      const mine=state.bills.length, theirs=(await decryptState(remote,sync.key)).bills.length;
+      sync.rev=remote.rev;
+      if(mine&&mine!==theirs){
+        if(confirm(`This device has ${mine} expenses. The synced copy has ${theirs}.\n\nOK = use the synced copy (replaces this device)\nCancel = keep this device and push it up`)){
+          await applyRemote(remote);
+        }else{
+          await pushRemote(true);
+        }
+      }else{
+        await applyRemote(remote);
+      }
+      drawSync('Synced '+nowTime());
+    }else{
+      sync.rev=0;await pushRemote(true);
+    }
+  }catch(e){ sync.key=null;drawSync('Could not unlock: '+e.message); }
+}
+
+async function resolveConflict(takeRemote){
+  const row=await pullRemote();
+  if(!row){sync.pending=false;drawSync('');return;}
+  if(takeRemote){ sync.rev=row.rev;await applyRemote(row);drawSync('Synced '+nowTime()); }
+  else { sync.rev=row.rev;await pushRemote(true); }
+}
+async function syncNow(){
+  if(!sync.key){drawSync('Unlock the vault first.');return;}
+  const row=await pullRemote();
+  if(row&&row.rev!==sync.rev){ sync.rev=row.rev;await applyRemote(row);drawSync('Synced '+nowTime()); }
+  else await pushRemote();
+}
+
+/* ── sync panel rendering ── */
+function drawSync(note){
+  if(note!==undefined)sync.note=note;
+  const pane=document.getElementById('syncPane'), dot=document.getElementById('syncDot');
+  if(!pane)return;
+  const n=sync.note?`<div class="hint">${esc(sync.note)}</div>`:'';
+
+  if(!SUB||!location.protocol.startsWith('http')){
+    dot.className='badge b-ok';dot.textContent='local only';
+    pane.innerHTML=`<div class="hint">Encrypted sync needs the page served over https.
+      Open the hosted copy rather than the file on disk.</div>`;return;
+  }
+  if(!sync.cfg){
+    dot.className='badge b-ok';dot.textContent='local only';
+    pane.innerHTML=`<div class="field"><label for="sbUrl">Supabase project URL</label>
+        <input type="text" id="sbUrl" placeholder="https://xxxx.supabase.co"></div>
+      <div class="field"><label for="sbKey">Anon public key</label>
+        <input type="text" id="sbKey" placeholder="eyJhbGciOi..."></div>
+      <button class="btn btn-primary" onclick="connectSupabase()">Connect</button>
+      <div class="hint">Stored on this device only. Nothing syncs until you sign in and set a passphrase.</div>${n}`;
+    return;
+  }
+  if(!sync.sess){
+    dot.className='badge b-warn';dot.textContent='signed out';
+    pane.innerHTML=`<div class="field"><label for="sbEmail">Email</label>
+        <input type="email" id="sbEmail" autocomplete="username"></div>
+      <div class="field"><label for="sbPw">Password</label>
+        <input type="password" id="sbPw" autocomplete="current-password"></div>
+      <div class="inline"><button class="btn" onclick="signIn('in')">Sign in</button>
+        <button class="btn btn-ghost" onclick="signIn('up')">Create account</button></div>${n}`;
+    return;
+  }
+  if(!sync.key){
+    dot.className='badge b-warn';dot.textContent='locked';
+    pane.innerHTML=`<div class="hint" style="margin-bottom:10px">Signed in as ${esc(sync.sess.email||'')}</div>
+      <div class="field"><label for="sbPass">Encryption passphrase</label>
+        <input type="password" id="sbPass" autocomplete="off"></div>
+      <button class="btn btn-primary" onclick="unlockVault()">Unlock</button>
+      <div class="hint"><strong>This is not your login password.</strong> It never leaves this device,
+        so nobody — including Supabase and including me — can reset it. Write it down somewhere safe.</div>
+      <div class="inline" style="margin-top:10px"><button class="btn btn-sm btn-ghost" onclick="signOut()">Sign out</button></div>${n}`;
+    return;
+  }
+  if(sync.note==='conflict'){
+    dot.className='badge b-bad';dot.textContent='conflict';
+    pane.innerHTML=`<div class="hint" style="color:var(--bad);margin-bottom:10px">
+        Another device saved changes after this one loaded. Nothing has been overwritten.</div>
+      <div class="inline"><button class="btn" onclick="resolveConflict(true)">Use the other device's copy</button>
+        <button class="btn btn-ghost" onclick="resolveConflict(false)">Keep this device's copy</button></div>`;
+    return;
+  }
+  dot.className='badge '+(sync.pending?'b-warn':'b-good');
+  dot.textContent=sync.pending?'pending':'synced';
+  pane.innerHTML=`<div class="hint" style="margin-bottom:10px">${esc(sync.sess.email||'')} · encrypted end to end</div>
+    <div class="inline"><button class="btn" onclick="syncNow()">Sync now</button>
+      <button class="btn btn-ghost" onclick="signOut()">Sign out</button></div>${n}`;
+}
+
+async function bootSync(){
+  try{sync.cfg=JSON.parse(localStorage.getItem(CFG));}catch(e){}
+  try{sync.sess=JSON.parse(localStorage.getItem(SESS));}catch(e){}
+  drawSync('');
+  const pass=localStorage.getItem(PASS), meta=localStorage.getItem(META);
+  if(sync.cfg&&sync.sess&&pass&&meta&&SUB){
+    try{
+      sync.key=await deriveKey(pass,unb64(JSON.parse(meta).salt));
+      const row=await pullRemote();
+      if(row){ sync.rev=row.rev;await applyRemote(row);drawSync('Synced '+nowTime()); }
+      else { sync.rev=0;await pushRemote(true); }
+    }catch(e){ sync.key=null;drawSync('Could not reach the vault — working locally.'); }
+  }
+}
+/* pull again when the tab regains focus, so switching devices picks up changes */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&sync.key&&!sync.busy)syncNow();
+});
+
 /* ══ boot ═══════════════════════════════════════════════ */
 load();
 state.cycleIndex=nowCycle();
@@ -878,6 +1159,7 @@ draftChecks=new Set(cycleChecks().map(c=>c.pos));
 draftFreq();
 render();
 document.getElementById('fAmount').addEventListener('input',drawDraft);
+bootSync();
 </script>
 </body>
 </html>

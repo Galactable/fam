@@ -245,6 +245,45 @@ tr.settled td:not(.drawer){opacity:.5}
 .nowrap{white-space:nowrap}
 td input{padding:7px 9px;font-size:13px}
 
+/* ── settings / add sheet ── */
+.sheet{position:fixed;inset:0;z-index:65;display:none;overflow:hidden;
+  background:rgba(4,6,8,.72);align-items:center;justify-content:center;padding:24px}
+.sheet.on{display:flex}
+.sheet-bg{position:absolute;inset:0}
+.sheet-card{position:relative;width:100%;max-width:470px;background:var(--surface);
+  border:1px solid var(--line);border-radius:8px;padding:14px 15px;
+  max-height:calc(100dvh - 48px);display:flex;flex-direction:column}
+.sheet-head{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;gap:10px;
+  margin-bottom:12px;padding-bottom:11px;border-bottom:1px solid var(--line-soft)}
+.sheet-head h3{margin:0;font-size:12px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-2)}
+.sheet-x{min-width:44px;min-height:44px;background:transparent;border:1px solid var(--line);
+  color:var(--ink-2);border-radius:6px;font-size:15px}
+.sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet-body .panel{margin-bottom:12px;padding:0;background:transparent;border:none}
+.sheet-body .panel:last-child{margin-bottom:0}
+.sheet-body .panel > h3{margin-bottom:11px}
+.sheet-body .panel:only-child > h3{display:none}
+body.sheeting .fab{display:none}
+/* gear + its sync light */
+.gear{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:44px;min-width:56px;padding:0 12px}
+#gearDot{width:8px;height:8px;border-radius:50%;background:currentColor;
+  border:none;padding:0;display:inline-block}
+/* the add button, phones only */
+.fab{display:none;position:fixed;z-index:55;
+  right:max(18px,env(safe-area-inset-right));bottom:calc(22px + env(safe-area-inset-bottom));
+  width:58px;height:58px;border-radius:50%;background:var(--phos);border:none;
+  color:#07242a;font-size:27px;line-height:1;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+@media(max-width:700px){
+  .fab{display:flex;align-items:center;justify-content:center}
+  #addHome{display:none}
+  .sheet{padding:0;align-items:flex-end}
+  .sheet-card{max-width:none;border-radius:12px 12px 0 0;
+    max-height:calc(100dvh - 24px);
+    padding:14px 15px calc(15px + env(safe-area-inset-bottom))}
+  body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+}
 .toast{position:fixed;left:50%;transform:translateX(-50%);
   bottom:calc(22px + env(safe-area-inset-bottom));z-index:60;display:none;
   align-items:center;gap:14px;background:var(--surface-3);border:1px solid var(--line);
@@ -316,6 +355,8 @@ td input{padding:7px 9px;font-size:13px}
         <option value="2">2</option><option value="4">4</option>
         <option value="5">5</option><option value="6">6</option>
       </select>
+      <button class="btn gear" onclick="openSheet('settings')" aria-label="Sync and backup settings"
+        title="Sync &amp; backup">⚙ <span id="gearDot" class="b-ok"></span></button>
     </div>
   </div>
 
@@ -328,8 +369,8 @@ td input{padding:7px 9px;font-size:13px}
   <div class="cards" id="cards"></div>
 
   <div class="cols">
-    <div>
-      <div class="panel">
+    <div id="addHome">
+      <div class="panel" id="addPanel">
         <h3>Add an expense</h3>
         <form onsubmit="addBill(event)" autocomplete="off">
           <div class="field">
@@ -387,21 +428,24 @@ td input{padding:7px 9px;font-size:13px}
         <div class="hint">Set the anchor once to any real payday. Every check from here on is generated from it.</div>
       </div>
 
-      <div class="panel">
-        <h3>Sync <span id="syncDot" class="badge b-ok" style="margin-left:6px">local only</span></h3>
-        <div id="syncPane"></div>
-      </div>
+    </div>
+  </div>
 
-      <div class="panel">
-        <h3>Backup</h3>
-        <div class="inline">
-          <button class="btn" onclick="exportData()">Export file</button>
-          <button class="btn" onclick="document.getElementById('fImport').click()">Import file</button>
-          <input type="file" id="fImport" accept=".json" hidden onchange="importData(event)">
-          <button class="btn btn-ghost" onclick="wipeAll()">Start fresh</button>
-        </div>
-        <div class="hint" id="ioNote">Everything is stored in this browser only. Export before clearing site data.</div>
+  <!-- lives here, shown inside the settings sheet -->
+  <div id="setHome" style="display:none">
+    <div class="panel" id="syncPanel">
+      <h3>Sync <span id="syncDot" class="badge b-ok" style="margin-left:6px">local only</span></h3>
+      <div id="syncPane"></div>
+    </div>
+    <div class="panel" id="bkPanel">
+      <h3>Backup</h3>
+      <div class="inline">
+        <button class="btn" onclick="exportData()">Export file</button>
+        <button class="btn" onclick="document.getElementById('fImport').click()">Import file</button>
+        <input type="file" id="fImport" accept=".json" hidden onchange="importData(event)">
+        <button class="btn btn-ghost" onclick="wipeAll()">Start fresh</button>
       </div>
+      <div class="hint" id="ioNote">Everything is stored in this browser only. Export before clearing site data.</div>
     </div>
   </div>
 
@@ -419,6 +463,19 @@ td input{padding:7px 9px;font-size:13px}
   </div>
 
   <p class="term-note" id="footNote"></p>
+  <button class="fab" onclick="openSheet('add')" aria-label="Add an expense">＋</button>
+
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-bg" onclick="closeSheet()"></div>
+    <div class="sheet-card">
+      <div class="sheet-head">
+        <h3 id="sheetTitle"></h3>
+        <button class="sheet-x" onclick="closeSheet()" aria-label="Close">✕</button>
+      </div>
+      <div class="sheet-body" id="sheetBody"></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status"></div>
 </div>
 
@@ -686,7 +743,8 @@ function addBill(e){
   document.getElementById('fName').value='';
   document.getElementById('fAmount').value='';
   const dd=document.getElementById('fDueDay'); if(dd)dd.value='';
-  render();}
+  render();
+  if(sheetOpen==='add')closeSheet();}
 
 function upd(id,f,v){
   const b=state.bills.find(x=>x.id===id);if(!b)return;
@@ -1059,6 +1117,40 @@ function reorderBill(id,beforeId){
   });
 })();
 
+/* ══ sheets ════════════════════════════════════════════
+   Panels are relocated into the sheet and put back on close —
+   one copy of each form, so every id and listener survives. */
+const SHEETS={
+  add:{title:'Add an expense',home:'addHome',ids:['addPanel']},
+  settings:{title:'Sync & backup',home:'setHome',ids:['syncPanel','bkPanel']}
+};
+let sheetOpen=null;
+function openSheet(which){
+  const cfg=SHEETS[which];if(!cfg)return;
+  if(sheetOpen)closeSheet();
+  document.getElementById('sheetTitle').textContent=cfg.title;
+  const body=document.getElementById('sheetBody');
+  cfg.ids.forEach(id=>{const el=document.getElementById(id);if(el)body.appendChild(el);});
+  document.getElementById('sheet').classList.add('on');
+  document.body.classList.add('sheeting');
+  sheetOpen=which;
+  const first=body.querySelector('input:not([type=file]),select,button');
+  if(first&&which==='add')first.focus();
+}
+function closeSheet(){
+  if(!sheetOpen)return;
+  const cfg=SHEETS[sheetOpen], home=document.getElementById(cfg.home);
+  cfg.ids.forEach(id=>{const el=document.getElementById(id);if(el&&home)home.appendChild(el);});
+  document.getElementById('sheet').classList.remove('on');
+  document.body.classList.remove('sheeting');
+  sheetOpen=null;
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet();});
+/* if the window widens back to the two-column layout, put the form back */
+if(window.matchMedia)window.matchMedia('(max-width:700px)').addEventListener('change',e=>{
+  if(!e.matches&&sheetOpen==='add')closeSheet();
+});
+
 /* ══ backup ═════════════════════════════════════════════ */
 function exportData(){
   const blob=new Blob([JSON.stringify({version:3,...state},null,2)],{type:'application/json'});
@@ -1367,6 +1459,15 @@ function drawSync(note){
     <div class="inline"><button class="btn" onclick="syncNow()">Sync now</button>
       <button class="btn btn-ghost" onclick="signOut()">Sign out</button></div>${n}`;
 }
+
+/* the gear carries the sync light, since the panel now lives in a sheet */
+const _drawSync=drawSync;
+drawSync=function(){
+  const out=_drawSync.apply(this,arguments);
+  const d=document.getElementById('syncDot'), g=document.getElementById('gearDot');
+  if(d&&g)g.className=(d.className.match(/b-\w+/)||['b-ok'])[0];
+  return out;
+};
 
 async function bootSync(){
   try{sync.cfg=JSON.parse(localStorage.getItem(CFG));}catch(e){}

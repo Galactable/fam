@@ -26,7 +26,8 @@
 
   --ink:#dce6ec;          /* primary reading colour */
   --ink-2:#93a1af;        /* secondary */
-  --ink-3:#5f6c7a;        /* tertiary / disabled */
+  --ink-3:#8b98a6;        /* tertiary — lifted to ~5.9:1 so hints stay readable */
+  --ink-4:#5f6c7a;        /* non-text only: subtle rules and accents */
 
   --phos:#5fd3e0;         /* the terminal's own voice */
   --gold:#f0c26b;         /* money */
@@ -82,7 +83,7 @@ button{font-family:var(--mono);cursor:pointer}
 .btn-ghost{background:transparent;border-color:var(--line);color:var(--ink-2)}
 .btn-sm{padding:4px 10px;font-size:12px;border-radius:5px}
 .btn-x{background:transparent;border:1px solid transparent;color:var(--ink-3);
-  padding:4px 8px;border-radius:5px;font-size:13px}
+  min-width:44px;min-height:40px;padding:4px 8px;border-radius:5px;font-size:14px}
 .btn-x:hover{color:var(--bad);border-color:rgba(244,112,127,.35);background:rgba(244,112,127,.07)}
 :focus-visible{outline:2px solid var(--phos);outline-offset:2px}
 
@@ -97,7 +98,7 @@ button{font-family:var(--mono);cursor:pointer}
 .b-vio{color:var(--violet);border-color:rgba(185,139,255,.4);background:rgba(185,139,255,.08)}
 
 /* ── notices ──────────────────────────────── */
-.notice{border:1px solid var(--line);border-left:2px solid var(--ink-3);border-radius:var(--r);
+.notice{border:1px solid var(--line);border-left:2px solid var(--ink-4);border-radius:var(--r);
   background:var(--surface);padding:13px 16px;margin-bottom:12px}
 .notice.n-bad{border-left-color:var(--bad)}
 .notice.n-warn{border-left-color:var(--warn)}
@@ -136,12 +137,25 @@ button{font-family:var(--mono);cursor:pointer}
 .card-amt{font-size:24px;color:var(--gold);letter-spacing:-.02em;margin:8px 0 12px;
   font-variant-numeric:tabular-nums}
 
-.line{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-top:1px solid var(--line-soft);font-size:13px}
+.line{display:flex;align-items:flex-start;gap:9px;padding:6px 26px 6px 0;border-top:1px solid var(--line-soft);font-size:13px}
 .line:first-of-type{border-top:none}
 .line-txt{flex:1;min-width:0;overflow-wrap:anywhere;line-height:1.4}
 .line-num{color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .line.done .line-txt{color:var(--ink-3);text-decoration:line-through;text-decoration-color:var(--ink-3)}
 .line.done .line-num{color:var(--ink-3);text-decoration:line-through}
+/* drag handle — its own target so ticking the row still works */
+.line{position:relative}
+.grip{position:absolute;right:0;top:0;bottom:0;width:26px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink-4);font-size:13px;line-height:1;cursor:grab;touch-action:none;
+  border-radius:4px;background:transparent;border:none;padding:0}
+.grip:hover{color:var(--violet);background:rgba(185,139,255,.1)}
+.line.dragging{opacity:.35}
+.card.drop{border-color:var(--violet);background:rgba(185,139,255,.07)}
+.line.dropmark{box-shadow:inset 0 2px 0 var(--violet)}
+.ghost{position:fixed;z-index:70;pointer-events:none;opacity:.92;
+  background:var(--surface-3);border:1px solid var(--violet);border-radius:5px;
+  padding:7px 10px;font-size:13px;display:flex;gap:9px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
 .slice{color:var(--violet);font-size:11.5px;margin-left:5px}
 .flag{color:var(--warn);font-size:11px;margin-left:5px;letter-spacing:.04em}
 .empty{color:var(--ink-3);font-size:12.5px;padding:8px 0}
@@ -158,9 +172,9 @@ button{font-family:var(--mono);cursor:pointer}
 .bar{height:3px;background:var(--surface-3);border-radius:2px;overflow:hidden;margin:12px 0 9px}
 .bar i{display:block;height:100%;background:var(--phos);border-radius:2px}
 .bar.over i{background:var(--bad)}
-.kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink-3);padding:1px 0}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink-3);padding:1px 26px 1px 0}
 .kv .num{font-variant-numeric:tabular-nums}
-.card-foot{margin-top:auto;padding-top:10px;border-top:1px solid var(--line);
+.card-foot{margin-top:auto;padding:10px 26px 0 0;border-top:1px solid var(--line);
   display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .card-foot .lbl{font-size:12px;color:var(--ink-2);letter-spacing:.04em;text-transform:uppercase}
 .card-foot .val{font-size:16px;font-variant-numeric:tabular-nums}
@@ -192,8 +206,9 @@ input[type=number]{font-variant-numeric:tabular-nums}
 /* check picker chips */
 .chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:2px}
 .chip{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);
-  border-radius:5px;padding:7px 11px;font-size:12px;line-height:1.35;text-align:center;
-  transition:all .12s;min-width:64px}
+  border-radius:5px;padding:8px 13px;font-size:12px;line-height:1.35;text-align:center;
+  transition:all .12s;min-width:68px;min-height:44px;
+  display:inline-flex;flex-direction:column;justify-content:center;align-items:center}
 .chip:hover{border-color:#3a424f;color:var(--ink-2)}
 .chip.on{border-color:var(--violet);background:rgba(185,139,255,.11);color:var(--violet)}
 .chip small{display:block;font-size:11px;opacity:.75}
@@ -230,10 +245,40 @@ tr.settled td:not(.drawer){opacity:.5}
 .nowrap{white-space:nowrap}
 td input{padding:7px 9px;font-size:13px}
 
+.toast{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(22px + env(safe-area-inset-bottom));z-index:60;display:none;
+  align-items:center;gap:14px;background:var(--surface-3);border:1px solid var(--line);
+  border-radius:8px;padding:10px 12px 10px 16px;box-shadow:0 10px 30px rgba(0,0,0,.55);
+  max-width:min(440px,92vw);font-size:13px}
+.toast.on{display:flex}
+.toast button{min-height:40px;background:var(--phos);border:none;color:#07242a;
+  font-weight:600;border-radius:5px;font-size:13px;padding:0 14px}
 .term-note{font-size:12px;color:var(--ink-3);text-align:center;margin-top:26px;
   padding-top:14px;border-top:1px solid var(--line-soft)}
 .term-note b{color:var(--ink-3);font-weight:400}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* ── phones: the expenses table becomes one card per expense ── */
+@media(max-width:700px){
+  .tscroll{overflow-x:visible;margin:0}
+  table{min-width:0;display:block}
+  thead{display:none}
+  tbody{display:block}
+  tbody tr{display:block;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:var(--r);padding:9px 12px;margin-bottom:10px}
+  tbody tr.open{border-color:rgba(185,139,255,.4)}
+  tbody tr:has(> td.drawer){background:transparent;border:none;padding:0;margin:-6px 0 10px}
+  tbody tr td{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:8px 0;border-bottom:1px solid var(--line-soft)}
+  tbody tr td:last-child{border-bottom:none}
+  tbody tr:hover td{background:transparent}
+  tbody td:empty{display:none}
+  td[data-l]::before{content:attr(data-l);flex:0 0 auto;font-size:11.5px;
+    letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+  td input{width:auto;flex:1;min-width:0;max-width:62%}
+  td.drawer{display:block;padding:2px 0 0;background:transparent;border-bottom:none}
+  tr.settled td:not(.drawer){opacity:.55}
+  .cell-sub{margin-top:2px}
+}
 @media(max-width:560px){
   body{padding:max(18px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right))
        max(34px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
@@ -374,6 +419,7 @@ td input{padding:7px 9px;font-size:13px}
   </div>
 
   <p class="term-note" id="footNote"></p>
+  <div class="toast" id="toast" role="status"></div>
 </div>
 
 <script>
@@ -405,6 +451,7 @@ function dayDiff(a,b){return Math.round((Date.UTC(b.getFullYear(),b.getMonth(),b
 function fmt(d){return `${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;}
 function fmtS(d){return `${MON[d.getMonth()]} ${d.getDate()}`;}
 function today(){const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate());}
+function iso(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 const ord=n=>n+(['th','st','nd','rd'][(n%100>>3^1&&n%10)||0]||'th');
 
 /* ══ payday stream ══════════════════════════════════════ */
@@ -496,7 +543,26 @@ function analyze(){
   return {L,checks,win,rows};}
 
 /* ══ paid tracking (per bill, per check, per cycle) ═════ */
-const pKey=(id,pos)=>`${id}|${state.cycleIndex}|${pos}`;
+/* A tick is bound to the real date of that payday, not to a cycle number.
+   Changing the anchor or the checks-per-cycle no longer re-points it. */
+function pKey(id,pos){
+  const c=cycleChecks()[pos-1];
+  return id+'@'+(c?iso(c.date):'p'+pos);
+}
+/* one-time move from the old id|cycleIndex|pos keys */
+function migratePaid(){
+  if(state.paidV===2)return;
+  const L=state.cycleLength||4, out={};
+  Object.keys(state.paid||{}).forEach(k=>{
+    if(k.indexOf('@')>0){out[k]=1;return;}
+    const p=k.split('|');
+    if(p.length===3&&!isNaN(+p[1])&&!isNaN(+p[2])){
+      out[p[0]+'@'+iso(payday(+p[1]*L+(+p[2])-1))]=1;return;
+    }
+    out[k]=1;
+  });
+  state.paid=out;state.paidV=2;
+}
 const isPaid=(id,pos)=>!!state.paid[pKey(id,pos)];
 function togglePaid(id,pos){
   const k=pKey(id,pos);
@@ -552,7 +618,7 @@ function load(){
 
 function wipeAll(){
   if(!confirm('Delete every expense and all settings on this device? Export a backup first if you want to keep them.'))return;
-  state={anchorDate:nextFriday(),weekly:0,cycleLength:4,cycleIndex:0,bills:[],paid:{}};
+  state={anchorDate:nextFriday(),weekly:0,cycleLength:4,cycleIndex:0,bills:[],paid:{},paidV:2};
   save();lastShape='';render();}
 
 /* ══ actions ════════════════════════════════════════════ */
@@ -628,6 +694,11 @@ function upd(id,f,v){
   if(f==='dueDay')v=v===''?null:(parseInt(v)||null);
   if(f==='check')v=parseInt(v)||1;
   b[f]=v;
+  /* a frequency change makes the other frequency's fields meaningless */
+  if(f==='freq'){
+    if(v==='every'){b.onDate='';b.reserve=false;}
+    else{b.dueDay=null;b.dueNote='';}
+  }
   if(f==='mode'&&v==='custom'&&b.splits.every(x=>!x))evenInto(b);
   save();render();}
 function updSplit(id,i,v){const b=state.bills.find(x=>x.id===id);if(!b)return;
@@ -637,10 +708,30 @@ function evenInto(b){const L=state.cycleLength,per=Math.floor(b.amount/L*100)/10
   for(let i=0;i<L;i++)b.splits[i]=per;
   b.splits[L-1]=r2(b.splits[L-1]+(b.amount-per*L));}
 function evenOut(id){const b=state.bills.find(x=>x.id===id);if(b){evenInto(b);save();render();}}
+let undoSnap=null, undoTimer=null;
+function toast(msg,undoable){
+  const el=document.getElementById('toast');
+  clearTimeout(undoTimer);
+  el.innerHTML='<span>'+esc(msg)+'</span>'+(undoable?'<button onclick="undoLast()">Undo</button>':'');
+  el.classList.add('on');
+  undoTimer=setTimeout(()=>el.classList.remove('on'),9000);
+}
+function undoLast(){
+  if(!undoSnap)return;
+  state.bills=undoSnap.bills;state.paid=undoSnap.paid;undoSnap=null;
+  clearTimeout(undoTimer);
+  document.getElementById('toast').classList.remove('on');
+  save();render();
+}
 function delBill(id){
-  state.bills=state.bills.filter(b=>b.id!==id);
-  Object.keys(state.paid).forEach(k=>{if(k.startsWith(id+'|'))delete state.paid[k];});
-  save();render();}
+  const b=state.bills.find(x=>x.id===id);if(!b)return;
+  const ticks=Object.keys(state.paid).filter(k=>k.startsWith(id+'@')).length;
+  if(ticks&&!confirm(`Delete "${b.name}"? It has ${ticks} payment${ticks===1?'':'s'} ticked off, and those go with it.`))return;
+  undoSnap={bills:state.bills.map(x=>({...x,splits:[...x.splits]})),paid:{...state.paid}};
+  state.bills=state.bills.filter(x=>x.id!==id);
+  Object.keys(state.paid).forEach(k=>{if(k.startsWith(id+'@')||k.startsWith(id+'|'))delete state.paid[k];});
+  save();render();
+  toast(`Deleted "${b.name}".`,true);}
 function toggleRow(id){openRow=openRow===id?null:id;render();}
 
 /* ══ render ═════════════════════════════════════════════ */
@@ -714,7 +805,7 @@ function render(){
     const pct=state.weekly>0?Math.min(100,committed/state.weekly*100):0;
     const nDone=items.filter(r=>isPaid(r.b.id,c.pos)).length;
 
-    return `<div class="card${i===liveIdx?' live':i===nextIdx?' next':''}">
+    return `<div class="card${i===liveIdx?' live':i===nextIdx?' next':''}" data-pos="${c.pos}">
       <div class="card-top">
         <span class="card-n">Check ${c.pos}</span>
         ${i===liveIdx?'<span class="badge b-live">Now</span>':i===nextIdx?'<span class="badge b-next">Next up</span>':''}
@@ -724,12 +815,14 @@ function render(){
       ${items.length?items.map(r=>{
         const done=isPaid(r.b.id,c.pos);
         const n=r.slices.length, k=r.slices.findIndex(s=>s.pos===c.pos)+1;
-        return `<label class="line${done?' done':''}">
+        return `<label class="line${done?' done':''}" data-bill="${r.b.id}" data-pos="${c.pos}">
           <input type="checkbox" class="tick" ${done?'checked':''}
             onchange="togglePaid('${r.b.id}',${c.pos})" title="Mark paid">
           <span class="line-txt">${esc(r.b.name)}${n>1?`<span class="slice">${k}/${n}</span>`:''}${
             r.late&&r.fp===c.pos&&!done?'<span class="flag">late</span>':''}</span>
-          <span class="line-num">${money(r.a.arr[i])}</span></label>`;
+          <span class="line-num">${money(r.a.arr[i])}</span>
+          <button type="button" class="grip" aria-label="Move ${esc(r.b.name)}"
+            title="Drag to another check, or up and down to reorder">⠿</button></label>`;
       }).join(''):'<div class="empty">Nothing allocated</div>'}
       <div class="bar${left<0?' over':''}"><i style="width:${pct}%"></i></div>
       <div class="kv"><span>Committed${items.length?` · ${nDone}/${items.length} paid`:''}</span><span class="num">${money(committed)}</span></div>
@@ -782,18 +875,18 @@ function render(){
     const tr=document.createElement('tr');
     tr.className=(open?'open ':'')+(r.allDone?'settled':'');
     tr.innerHTML=`
-      <td>${n?`<input type="checkbox" class="tick" ${r.allDone?'checked':''}
+      <td data-l="All paid">${n?`<input type="checkbox" class="tick" ${r.allDone?'checked':''}
             onchange="toggleAll('${b.id}')" title="Mark whole bill paid this cycle">`:''}</td>
-      <td><input type="text" value="${esc(b.name)}" onchange="upd('${b.id}','name',this.value)"></td>
-      <td class="nowrap">${b.freq==='every'
+      <td data-l="Name"><input type="text" value="${esc(b.name)}" onchange="upd('${b.id}','name',this.value)"></td>
+      <td class="nowrap" data-l="Due">${b.freq==='every'
           ? `<input type="number" min="1" max="31" value="${b.dueDay||''}" placeholder="—"
                onchange="upd('${b.id}','dueDay',this.value)" style="width:66px">
              ${r.due?`<div class="cell-sub">${fmtS(r.due)}</div>`:(b.dueNote?`<div class="cell-sub">${esc(b.dueNote)}</div>`:'')}`
           : `<span class="badge ${b.freq==='annual'?'b-vio':'b-warn'}">${b.freq==='annual'?'yearly':'one time'}</span>
              <div class="cell-sub">${b.onDate?fmtS(parseISO(b.onDate)):'no date'}</div>`}</td>
-      <td><div class="badge ${scls}">${b.mode}</div><div class="cell-sub">${split}</div></td>
-      <td><input type="number" step="0.01" value="${b.amount}" onchange="upd('${b.id}','amount',this.value)" style="width:104px"></td>
-      <td>${st}</td>
+      <td data-l="Split"><div class="badge ${scls}">${b.mode}</div><div class="cell-sub">${split}</div></td>
+      <td data-l="Amount"><input type="number" step="0.01" value="${b.amount}" onchange="upd('${b.id}','amount',this.value)" style="width:104px"></td>
+      <td data-l="Status">${st}</td>
       <td class="nowrap"><button class="btn btn-sm btn-ghost" onclick="toggleRow('${b.id}')">${open?'Close':'Edit'}</button>
         <button class="btn-x" onclick="delBill('${b.id}')" title="Delete">✕</button></td>`;
     tb.appendChild(tr);
@@ -854,6 +947,118 @@ function render(){
   if(lastShape!==shape){lastShape=shape;drawDraft();}
 }
 
+/* ══ move an allocation between checks ═════════════════
+   The money is unchanged — only which check carries it moves.
+   A single-check bill just moves; an even or custom split turns
+   custom, because one slice has now been placed by hand. */
+function moveSlice(id,fromPos,toPos){
+  if(fromPos===toPos)return false;
+  const b=state.bills.find(x=>x.id===id);if(!b)return false;
+  const L=state.cycleLength, win=cycleWindow();
+  if(toPos<1||toPos>L)return false;
+  const arr=allocate(b,L,win).arr, amt=r2(arr[fromPos-1]);
+  if(amt<=0)return false;
+  if(b.mode==='single'){
+    b.check=toPos;
+  }else{
+    /* splits are in whole-bill terms; a reserved bill allocates a fraction
+       of that per cycle, so scale the moved slice back up before storing */
+    const cyc=cycleAmount(b,L,win);
+    const scale=cyc>0?r2(b.amount)/cyc:1;
+    if(b.mode!=='custom'){
+      b.splits=new Array(6).fill(0);
+      for(let i=0;i<L;i++)b.splits[i]=r2(arr[i]*scale);
+      /* scaling back up can land a cent off — snap to the bill's real total */
+      const conv=r2(b.splits.slice(0,L).reduce((a,v)=>a+v,0));
+      if(conv!==r2(b.amount)){
+        let last=0;for(let i=0;i<L;i++)if(b.splits[i]>0)last=i;
+        b.splits[last]=r2(b.splits[last]+(r2(b.amount)-conv));
+      }
+      b.mode='custom';
+    }
+    const kept=r2(b.splits.slice(0,L).reduce((a,v)=>a+v,0));
+    const step=r2(amt*scale);
+    b.splits[fromPos-1]=Math.max(0,r2(b.splits[fromPos-1]-step));
+    b.splits[toPos-1]=r2(b.splits[toPos-1]+step);
+    /* absorb any rounding residue so the split still totals the bill exactly */
+    const now=r2(b.splits.slice(0,L).reduce((a,v)=>a+v,0));
+    if(now!==kept)b.splits[toPos-1]=r2(b.splits[toPos-1]+(kept-now));
+  }
+  /* the tick follows the money to its new payday */
+  const fk=pKey(id,fromPos);
+  if(state.paid[fk]){delete state.paid[fk];state.paid[pKey(id,toPos)]=1;}
+  save();return true;
+}
+/* reorder within a check: the bills array drives line order */
+function reorderBill(id,beforeId){
+  if(id===beforeId)return false;
+  const from=state.bills.findIndex(b=>b.id===id);
+  if(from<0)return false;
+  const [b]=state.bills.splice(from,1);
+  let at=beforeId?state.bills.findIndex(x=>x.id===beforeId):state.bills.length;
+  if(at<0)at=state.bills.length;
+  state.bills.splice(at,0,b);
+  save();return true;
+}
+
+/* ══ pointer drag — one path for mouse and touch ════════ */
+(function(){
+  let drag=null;
+  const hit=(x,y,sel)=>{const el=document.elementFromPoint(x,y);return el?el.closest(sel):null;};
+  const clearMarks=()=>{
+    document.querySelectorAll('.card.drop').forEach(e=>e.classList.remove('drop'));
+    document.querySelectorAll('.line.dropmark').forEach(e=>e.classList.remove('dropmark'));
+  };
+  document.addEventListener('pointerdown',e=>{
+    const grip=e.target.closest&&e.target.closest('.grip');
+    if(!grip)return;
+    const line=grip.closest('.line');if(!line)return;
+    e.preventDefault();
+    drag={id:line.dataset.bill,pos:+line.dataset.pos,line,x:e.clientX,y:e.clientY,live:false,ghost:null};
+    if(grip.setPointerCapture)grip.setPointerCapture(e.pointerId);
+  });
+  document.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    if(!drag.live){
+      if(Math.abs(e.clientX-drag.x)+Math.abs(e.clientY-drag.y)<7)return;
+      drag.live=true;
+      drag.line.classList.add('dragging');
+      const g=document.createElement('div');
+      g.className='ghost';
+      g.innerHTML=drag.line.querySelector('.line-txt').innerHTML+
+        '<span style="color:var(--gold)">'+drag.line.querySelector('.line-num').textContent+'</span>';
+      document.body.appendChild(g);drag.ghost=g;
+    }
+    drag.ghost.style.left=(e.clientX+12)+'px';
+    drag.ghost.style.top=(e.clientY-14)+'px';
+    clearMarks();
+    const card=hit(e.clientX,e.clientY,'.card');
+    if(card)card.classList.add('drop');
+    const over=hit(e.clientX,e.clientY,'.line');
+    if(over&&over!==drag.line)over.classList.add('dropmark');
+  });
+  document.addEventListener('pointerup',e=>{
+    if(!drag)return;
+    const d=drag;drag=null;
+    if(!d.live){clearMarks();return;}
+    d.line.classList.remove('dragging');
+    if(d.ghost)d.ghost.remove();
+    const card=hit(e.clientX,e.clientY,'.card');
+    const over=hit(e.clientX,e.clientY,'.line');
+    clearMarks();
+    let changed=false;
+    if(over&&over!==d.line&&over.dataset.bill)changed=reorderBill(d.id,over.dataset.bill)||changed;
+    if(card&&+card.dataset.pos!==d.pos)changed=moveSlice(d.id,d.pos,+card.dataset.pos)||changed;
+    if(changed)render();
+  });
+  document.addEventListener('pointercancel',()=>{
+    if(!drag)return;
+    drag.line.classList.remove('dragging');
+    if(drag.ghost)drag.ghost.remove();
+    drag=null;clearMarks();
+  });
+})();
+
 /* ══ backup ═════════════════════════════════════════════ */
 function exportData(){
   const blob=new Blob([JSON.stringify({version:3,...state},null,2)],{type:'application/json'});
@@ -872,6 +1077,7 @@ function importData(e){
     state.weekly=r2(d.weekly||d.ttd||state.weekly);
     state.cycleLength=parseInt(d.cycleLength||d.checks||state.cycleLength);
     state.paid=d.paid||{};
+    state.paidV=d.paidV;migratePaid();
     save();lastShape='';render();
     document.getElementById('ioNote').textContent=`Loaded ${state.bills.length} expenses${d.version?'':' from an older backup'}.`;
   }catch(err){document.getElementById('ioNote').textContent='That file could not be read as a FAM backup.';}};
@@ -921,7 +1127,16 @@ async function sbRest(path,opts={},retry=true){
     headers:{'apikey':sync.cfg.key,'Authorization':`Bearer ${sync.sess.access_token}`,
       'Content-Type':'application/json','Prefer':'return=representation',...(opts.headers||{})}});
   if(r.status===401&&retry&&sync.sess.refresh_token){
-    await refreshSession();
+    /* ROLL shares this session on the same origin and Supabase rotates refresh
+       tokens on use — take the newest stored copy before spending ours. */
+    try{
+      const fresh=JSON.parse(localStorage.getItem(SESS));
+      if(fresh&&fresh.access_token&&fresh.access_token!==sync.sess.access_token){
+        sync.sess=fresh;return sbRest(path,opts,false);
+      }
+    }catch(e){}
+    try{ await refreshSession(); }
+    catch(err){ sessionExpired(); throw new Error('SESSION_EXPIRED'); }
     return sbRest(path,opts,false);
   }
   if(!r.ok)throw new Error(`${r.status} ${(await r.text()).slice(0,180)}`);
@@ -939,7 +1154,7 @@ function saveSession(j){
 
 /* ── the state we actually sync (never the session or passphrase) ── */
 const syncable=()=>({anchorDate:state.anchorDate,weekly:state.weekly,
-  cycleLength:state.cycleLength,bills:state.bills,paid:state.paid});
+  cycleLength:state.cycleLength,bills:state.bills,paid:state.paid,paidV:state.paidV});
 
 async function pushRemote(force){
   if(!sync.sess||!sync.key)return;
@@ -969,7 +1184,9 @@ async function pushRemote(force){
     sync.rev=(rows&&rows[0]&&rows[0].rev)||sync.rev+1;
     sync.pending=false;sync.busy=false;drawSync('Saved '+nowTime());
   }catch(e){
-    sync.busy=false;sync.pending=true;drawSync('offline — will retry');
+    sync.busy=false;
+    if(e.message==='SESSION_EXPIRED')return;
+    sync.pending=true;drawSync('offline — will retry');
   }
 }
 
@@ -985,6 +1202,7 @@ async function applyRemote(row){
   Object.assign(state,data);
   state.bills=(state.bills||[]).map(norm);
   state.paid=state.paid||{};
+  migratePaid();
   sync.rev=row.rev;
   localStorage.setItem(KEY,JSON.stringify(state));
   lastShape='';render();
@@ -1019,8 +1237,15 @@ async function signIn(mode){
     saveSession(j);drawSync('');
   }catch(e){drawSync(e.message);}
 }
+function sessionExpired(){
+  localStorage.removeItem(SESS);
+  try{sessionStorage.removeItem(PASS);}catch(e){}
+  sync.sess=null;sync.key=null;sync.rev=0;
+  drawSync('That sign-in expired. Sign in again — your data is safe on this device.');
+}
 function signOut(){
   localStorage.removeItem(SESS);localStorage.removeItem(PASS);
+  try{sessionStorage.removeItem(PASS);}catch(e){}
   sync.sess=null;sync.key=null;sync.rev=0;drawSync('');
 }
 
@@ -1041,7 +1266,7 @@ async function unlockVault(){
       sync.key=await deriveKey(pass,salt);
     }
     localStorage.setItem(META,JSON.stringify({salt:b64(salt)}));
-    localStorage.setItem(PASS,pass);   /* device-local convenience; never transmitted */
+    try{sessionStorage.setItem(PASS,pass);}catch(e){}   /* this session only; never written to disk, never transmitted */
 
     if(remote){
       const mine=state.bills.length, theirs=(await decryptState(remote,sync.key)).bills.length;
@@ -1059,7 +1284,8 @@ async function unlockVault(){
     }else{
       sync.rev=0;await pushRemote(true);
     }
-  }catch(e){ sync.key=null;drawSync('Could not unlock: '+e.message); }
+  }catch(e){ sync.key=null;
+    if(e.message!=='SESSION_EXPIRED')drawSync('Could not unlock: '+e.message); }
 }
 
 async function resolveConflict(takeRemote){
@@ -1146,14 +1372,17 @@ async function bootSync(){
   try{sync.cfg=JSON.parse(localStorage.getItem(CFG));}catch(e){}
   try{sync.sess=JSON.parse(localStorage.getItem(SESS));}catch(e){}
   drawSync('');
-  const pass=localStorage.getItem(PASS), meta=localStorage.getItem(META);
+  let pass=null;
+  try{pass=sessionStorage.getItem(PASS)||localStorage.getItem(PASS);}catch(e){}
+  const meta=localStorage.getItem(META);
   if(sync.cfg&&sync.sess&&pass&&meta&&SUB){
     try{
       sync.key=await deriveKey(pass,unb64(JSON.parse(meta).salt));
       const row=await pullRemote();
       if(row){ sync.rev=row.rev;await applyRemote(row);drawSync('Synced '+nowTime()); }
       else { sync.rev=0;await pushRemote(true); }
-    }catch(e){ sync.key=null;drawSync('Could not reach the vault — working locally.'); }
+    }catch(e){ sync.key=null;
+      if(e.message!=='SESSION_EXPIRED')drawSync('Could not reach the vault — working locally.'); }
   }
 }
 /* pull again when the tab regains focus, so switching devices picks up changes */
@@ -1163,6 +1392,7 @@ document.addEventListener('visibilitychange',()=>{
 
 /* ══ boot ═══════════════════════════════════════════════ */
 load();
+migratePaid();
 state.cycleIndex=nowCycle();
 draftChecks=new Set(cycleChecks().map(c=>c.pos));
 draftFreq();

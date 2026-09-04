@@ -19,20 +19,5 @@ paycheck gets wiped out by rent.
 - Frequencies: every cycle, once a year, one time only — with optional
   set-aside so a yearly bill doesn't land as a lump
 - Warns rather than silently dropping anything assigned outside the cycle
+- Account with anon public key
 - Export / import JSON backups
-
-## Data
-
-Everything is stored in this browser's `localStorage` under `fam_state_v3`.
-Nothing is transmitted anywhere; there are no network requests of any kind.
-
-**Storage is tied to the origin (domain), not the path.** Changing the URL
-makes existing data unreachable. Export before any domain change.
-
-**Never commit your exported backups** — they contain real financial data.
-`.gitignore` covers the default filenames.
-
-## Deploying
-
-Static files only, no build step. Push to a repo and enable GitHub Pages,
-or drag the folder onto any static host.
